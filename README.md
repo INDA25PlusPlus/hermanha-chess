@@ -25,3 +25,5 @@ moves that are not yet counted in are:
   might have forgot something wellwell
 
 Oh and ofcourse, code will be refactored later. its pretty ugly, some beautiful tests maybe:o
+
+I dont know if i like board owning all of the moves and legality stuff. i think im gonna change that yes veri good
