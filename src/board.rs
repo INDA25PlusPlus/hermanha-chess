@@ -1,20 +1,24 @@
 use crate::pieces::{Piece, PieceType, Color};
 
-#[derive(Debug, Clone, Copy)] // chat thought me this :D
+pub const BOARD_ROWS: u8 = 8;
+pub const BOARD_COLS: u8 = 8;
+
+
+#[derive(Debug, Clone, Copy, PartialEq)] // chat thought me this :D
 pub struct Position{
     pub row: u8,
     pub col: u8,
 }
 
 pub struct Board{
-    squares: [[Option<Piece>; 8]; 8],
+    pub squares: [[Option<Piece>; BOARD_COLS as usize]; BOARD_ROWS as usize],
     pub move_turn: Color,
 }
 
 impl Board{
     pub fn new() -> Self{
         Board{
-            squares: [[None; 8]; 8],
+            squares: [[None; BOARD_COLS as usize]; BOARD_ROWS as usize],
             move_turn: Color::White,
         }
     }
@@ -28,12 +32,12 @@ impl Board{
     }
 
     pub fn setup_standard(&mut self){
-        self.squares = [[None; 8]; 8];
+        self.squares = [[None; BOARD_COLS as usize]; BOARD_ROWS as usize];
 
         // Place pawns
-        for col in 0..8 {
-            self.squares[1][col] = Some(Piece { piece_type: PieceType::Pawn, color: Color::White });
-            self.squares[6][col] = Some(Piece { piece_type: PieceType::Pawn, color: Color::Black });
+        for col in 0..BOARD_ROWS {
+            self.squares[1][col as usize] = Some(Piece { piece_type: PieceType::Pawn, color: Color::White });
+            self.squares[6][col as usize] = Some(Piece { piece_type: PieceType::Pawn, color: Color::Black });
         }
         // Place rooks
         self.squares[0][0] = Some(Piece { piece_type: PieceType::Rook, color: Color::White });
