@@ -23,3 +23,5 @@ moves that are not yet counted in are:
   pawns promoting,
   castling,
   might have forgot something wellwell
+
+Oh and ofcourse, code will be refactored later. its pretty ugly, some beautiful tests maybe:o
