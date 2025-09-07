@@ -1,18 +1,31 @@
 use crate::pieces::{Piece, PieceType, Color};
 
-pub const BOARD_ROWS: u8 = 8;
-pub const BOARD_COLS: u8 = 8;
+pub const BOARD_ROWS: i8 = 8;
+pub const BOARD_COLS: i8 = 8;
 
+// ASCII board
+pub const ASCII: [&str; 8] = [
+    "RNBQKBNR",
+    "PPPPPPPP",
+    "........",
+    "........",
+    "........",
+    "........",
+    "pppppppp",
+    "rnbqkbnr",
+];
 
-#[derive(Debug, Clone, Copy, PartialEq)] // chat thought me this :D
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position{
-    pub row: u8,
-    pub col: u8,
+    pub row: i8,
+    pub col: i8,
 }
 
 pub struct Board{
     pub squares: [[Option<Piece>; BOARD_COLS as usize]; BOARD_ROWS as usize],
     pub move_turn: Color,
+    pub white_king: Option<Position>,
+    pub black_king: Option<Position> //cache the kings insted of looping through board looking for it??? good??
 }
 
 impl Board{
@@ -20,6 +33,8 @@ impl Board{
         Board{
             squares: [[None; BOARD_COLS as usize]; BOARD_ROWS as usize],
             move_turn: Color::White,
+            white_king: None,
+            black_king: None
         }
     }
 
@@ -28,42 +43,79 @@ impl Board{
     }
 
     pub fn set(&mut self, position: Position, piece: Option<Piece>){
+
+        if let Some(p) = piece {
+            if p.piece_type == PieceType::King {
+                match self.move_turn {
+                    Color::Black => self.black_king = Some(position),
+                    Color::White => self.white_king = Some(position)
+                }
+            }
+        }
+
         self.squares[position.row as usize][position.col as usize] = piece;
     }
 
-    pub fn setup_standard(&mut self){
+    // loop through list of strings as ascii characters to place pieces on board
+    pub fn setup_ascii(&mut self, ascii: [&str; 8]) {
         self.squares = [[None; BOARD_COLS as usize]; BOARD_ROWS as usize];
+        self.white_king = None;
+        self.black_king = None;
 
-        // Place pawns
-        for col in 0..BOARD_ROWS {
-            self.squares[1][col as usize] = Some(Piece { piece_type: PieceType::Pawn, color: Color::White });
-            self.squares[6][col as usize] = Some(Piece { piece_type: PieceType::Pawn, color: Color::Black });
+        for (row, row_str) in ascii.iter().enumerate() {
+            for (col, ch) in row_str.chars().enumerate() {
+                let pos = Position { row: row as i8, col: col as i8};
+
+                let piece = match ch {
+                    'p' => Some(Piece { piece_type: PieceType::Pawn,   color: Color::Black }),
+                    'r' => Some(Piece { piece_type: PieceType::Rook,   color: Color::Black }),
+                    'n' => Some(Piece { piece_type: PieceType::Knight, color: Color::Black }),
+                    'b' => Some(Piece { piece_type: PieceType::Bishop, color: Color::Black }),
+                    'q' => Some(Piece { piece_type: PieceType::Queen,  color: Color::Black }),
+                    'k' => Some(Piece { piece_type: PieceType::King,   color: Color::Black }),
+                    'P' => Some(Piece { piece_type: PieceType::Pawn,   color: Color::White }),
+                    'R' => Some(Piece { piece_type: PieceType::Rook,   color: Color::White }),
+                    'N' => Some(Piece { piece_type: PieceType::Knight, color: Color::White }),
+                    'B' => Some(Piece { piece_type: PieceType::Bishop, color: Color::White }),
+                    'Q' => Some(Piece { piece_type: PieceType::Queen,  color: Color::White }),
+                    'K' => Some(Piece { piece_type: PieceType::King,   color: Color::White }),
+                    '.' => None,
+                    _   => None,
+                };
+
+                self.set(pos, piece);
+            }
         }
-        // Place rooks
-        self.squares[0][0] = Some(Piece { piece_type: PieceType::Rook, color: Color::White });
-        self.squares[0][7] = Some(Piece { piece_type: PieceType::Rook, color: Color::White });
-        self.squares[7][0] = Some(Piece { piece_type: PieceType::Rook, color: Color::Black });
-        self.squares[7][7] = Some(Piece { piece_type: PieceType::Rook, color: Color::Black });
 
-        // Place knights
-        self.squares[0][1] = Some(Piece { piece_type: PieceType::Knight, color: Color::White });
-        self.squares[0][6] = Some(Piece { piece_type: PieceType::Knight, color: Color::White });
-        self.squares[7][1] = Some(Piece { piece_type: PieceType::Knight, color: Color::Black });
-        self.squares[7][6] = Some(Piece { piece_type: PieceType::Knight, color: Color::Black });
+    }
 
-        // Place bishops
-        self.squares[0][2] = Some(Piece { piece_type: PieceType::Bishop, color: Color::White });
-        self.squares[0][5] = Some(Piece { piece_type: PieceType::Bishop, color: Color::White });
-        self.squares[7][2] = Some(Piece { piece_type: PieceType::Bishop, color: Color::Black });
-        self.squares[7][5] = Some(Piece { piece_type: PieceType::Bishop, color: Color::Black });
+    pub fn print_ascii(&self) { // took some help from chat to debug using this. easier to see
+        for row in 0..BOARD_ROWS {
+            for col in 0..BOARD_COLS {
+                match self.squares[row as usize][col as usize] {
+                    Some(piece) => {
+                        let ch = match (piece.piece_type, piece.color) {
+                            (PieceType::Pawn,   Color::White) => 'P',
+                            (PieceType::Rook,   Color::White) => 'R',
+                            (PieceType::Knight, Color::White) => 'N',
+                            (PieceType::Bishop, Color::White) => 'B',
+                            (PieceType::Queen,  Color::White) => 'Q',
+                            (PieceType::King,   Color::White) => 'K',
 
-        // Place queens
-        self.squares[0][3] = Some(Piece { piece_type: PieceType::Queen, color: Color::White });
-        self.squares[7][3] = Some(Piece { piece_type: PieceType::Queen, color: Color::Black });
-
-        // Place kings
-        self.squares[0][4] = Some(Piece { piece_type: PieceType::King, color: Color::White });
-        self.squares[7][4] = Some(Piece { piece_type: PieceType::King, color: Color::Black });
+                            (PieceType::Pawn,   Color::Black) => 'p',
+                            (PieceType::Rook,   Color::Black) => 'r',
+                            (PieceType::Knight, Color::Black) => 'n',
+                            (PieceType::Bishop, Color::Black) => 'b',
+                            (PieceType::Queen,  Color::Black) => 'q',
+                            (PieceType::King,   Color::Black) => 'k',
+                        };
+                        print!("{}", ch);
+                    }
+                    None => print!("."),
+                }
+            }
+            println!();
+        }
     }
 }
 
@@ -74,7 +126,6 @@ mod tests {
     #[test]
     fn test_generate_starting_board() {
         let mut board = Board::new();
-        board.setup_standard();
-        println!("{:?}", board.squares)
+        board.setup_ascii(ASCII);
     }
 }
