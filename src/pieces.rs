@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PieceType {
     Pawn,
     Bishop,
@@ -21,15 +21,19 @@ pub struct Piece {
 }
 
 impl Piece {
-    pub fn move_shape_ok(self, d_row: i8, d_col:i8, color: Color) -> bool {
+    pub fn move_shape_ok(self, d_row: i8, d_col: i8, capture: bool) -> bool {
         use PieceType::*;
         let abs_dr = d_row.abs();
         let abs_dc = d_col.abs();
 
         match self.piece_type {
             Pawn => {
-                let fwd = match color { Color::White => 1, Color::Black => -1}; // got some help with this logic
-                d_col == 0 && (d_row == fwd || d_row == 2*fwd)
+                let fwd = match self.color {
+                    Color::White => 1,
+                    Color::Black => -1,
+                }; // got some help with this logic
+                (d_col == 0 && (d_row == fwd || d_row == 2 * fwd))
+                    || (capture && abs_dc == 1 && (d_row == fwd))
             }
             King => abs_dr <= 1 && abs_dc <= 1,
             Bishop => abs_dc == abs_dr,
@@ -39,4 +43,3 @@ impl Piece {
         }
     }
 }
-
