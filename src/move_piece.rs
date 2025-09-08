@@ -91,7 +91,7 @@ impl Board {
 
         let (d_row, d_col) = from_pos.delta(to_pos);
         // check if piece allows move shape
-        if !from_piece.move_shape_ok(d_row, d_col, capture) {
+        if !from_piece.move_shape_ok(d_row, d_col, capture, from_pos.row) {
             return Err(MoveError::IllegalShape);
         }
 
@@ -184,12 +184,12 @@ impl Board {
 
                         match hit_piece.piece_type {
                             Bishop | Queen | Rook => {
-                                if hit_piece.move_shape_ok(d_row, d_col, false) {
+                                if hit_piece.move_shape_ok(d_row, d_col, false, hit_pos.row) {
                                     return true;
                                 }
                             }
                             Pawn | King => {
-                                if hit_piece.move_shape_ok(d_row, d_col, true) {
+                                if hit_piece.move_shape_ok(d_row, d_col, true, hit_pos.row) {
                                     return true;
                                 }
                             }
