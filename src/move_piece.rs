@@ -1,79 +1,93 @@
-use crate::board::{Board, Position};
+use crate::board::{BOARD_COLS, BOARD_ROWS, Board, Position};
 use crate::pieces::{Color, PieceType};
 
 // ASCII board
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoveError {
+    EmptyFrom,
+    WrongTurn,
+    IllegalShape,
+    Blocked { at: Position },
+    SelfCheck,
+    SameSquare,
+    OutOfBounds,
+    CaptureOwn,
+}
+
+pub type MoveOk = ();
+
 impl Position {
-    pub fn delta(self, other: Position) -> (i8, i8) {
-        (
-            other.row as i8 - self.row as i8,
-            other.col as i8 - self.col as i8,
-        )
+    pub fn delta(&self, other: Position) -> (i8, i8) {
+        (other.row - self.row, other.col - self.col)
     }
 }
 
 impl Board {
-    pub fn move_piece(&mut self, from: Position, to: Position) -> bool {
-        // returns bool for now just for debugging
+    pub fn move_piece(
+        &mut self,
+        from_pos: Position,
+        to_pos: Position,
+    ) -> Result<MoveOk, MoveError> {
+        self.pseudo_legal_move(from_pos, to_pos)?;
 
-        if let Some(from_piece) = self.get(from) {
-            if !self.psuedo_legal_move(from, to) {
-                return false;
-            };
+        let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
+        let to_piece = self.get(to_pos);
 
-            let to_piece = self.get(to);
+        self.set(from_pos, None);
+        self.set(to_pos, Some(from_piece));
 
-            self.set(from, None);
-            self.set(to, Some(from_piece));
-
-            if self.is_in_check() {
-                self.set(to, to_piece);
-                self.set(from, Some(from_piece));
-                return false;
-            }
-
-            self.move_turn = match self.move_turn {
-                Color::White => Color::Black,
-                Color::Black => Color::White,
-            };
+        if self.is_in_check() {
+            self.set(to_pos, to_piece);
+            self.set(from_pos, Some(from_piece));
+            return Err(MoveError::SelfCheck);
         }
 
-        true
+        self.move_turn = match self.move_turn {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        };
+
+        Ok(())
     }
 
+    #[inline]
     pub fn pos_on_board(&self, pos: Position) -> bool {
-        pos.row >= 0
-            && pos.row < self.squares.len() as i8
-            && pos.col >= 0
-            && pos.col < self.squares[0].len() as i8
+        pos.row >= 0 && pos.row < BOARD_ROWS && pos.col >= 0 && pos.col < BOARD_COLS
     }
 
-    pub fn psuedo_legal_move(&self, from: Position, to: Position) -> bool {
-        // check to position on board, believe we dont have to check from pos
-        if !self.pos_on_board(to) || from == to {
-            return false;
+    pub fn pseudo_legal_move(
+        &self,
+        from_pos: Position,
+        to_pos: Position,
+    ) -> Result<MoveOk, MoveError> {
+        // check to_pos position on board, believe we dont have to_pos check from_pos
+        if !self.pos_on_board(from_pos) || !self.pos_on_board(to_pos) {
+            return Err(MoveError::OutOfBounds);
+        }
+        if from_pos == to_pos {
+            return Err(MoveError::SameSquare);
         }
 
-        // get piece on from and to position
-        let Some(from_piece) = self.get(from) else {
-            return false;
+        // get piece on from_pos and to_pos position
+        let Some(from_piece) = self.get(from_pos) else {
+            return Err(MoveError::EmptyFrom);
         };
+        // check turn
         if from_piece.color != self.move_turn {
-            return false;
+            return Err(MoveError::WrongTurn);
         }
-
         // check if own piece color is on square
-        if let Some(to_piece) = self.get(to) {
+        if let Some(to_piece) = self.get(to_pos) {
             if to_piece.color == from_piece.color {
-                return false;
+                return Err(MoveError::CaptureOwn);
             }
         };
 
-        let (d_row, d_col) = from.delta(to);
-
+        let (d_row, d_col) = from_pos.delta(to_pos);
         // check if piece allows move shape
         if !from_piece.move_shape_ok(d_row, d_col, false) {
-            return false;
+            return Err(MoveError::IllegalShape);
         }
 
         use PieceType::*;
@@ -81,11 +95,18 @@ impl Board {
         let row_offset = d_row.signum();
         let col_offset = d_col.signum();
 
+        // check the path between from and to pos to determine blocking piece
         match from_piece.piece_type {
-            Bishop | Queen | Rook | Pawn => self
-                .check_clear_path(from, Some(to), row_offset, col_offset)
-                .is_none(), // should return true if check clear path returns None. false if it returns a piece.
-            _ => true,
+            Bishop | Queen | Rook | Pawn => {
+                if let Some(block_pos) =
+                    self.check_clear_path(from_pos, Some(to_pos), row_offset, col_offset)
+                {
+                    return Err(MoveError::Blocked { at: (block_pos) });
+                } else {
+                    return Ok(());
+                }
+            }
+            _ => Ok(()),
         }
     }
 
@@ -93,24 +114,25 @@ impl Board {
 
     pub fn check_clear_path(
         &self,
-        from: Position,
-        to: Option<Position>,
+        from_pos: Position,
+        to_pos: Option<Position>,
         row_offset: i8,
         col_offset: i8,
     ) -> Option<Position> {
-        let mut path_row = row_offset + from.row as i8;
-        let mut path_col = col_offset + from.col as i8;
+        let mut path_row = row_offset + from_pos.row;
+        let mut path_col = col_offset + from_pos.col;
 
-        while self.pos_on_board(Position {
-            row: (path_row),
-            col: (path_col),
-        }) {
+        loop {
             let pos = Position {
                 row: path_row,
                 col: path_col,
             };
 
-            if let Some(target) = to {
+            if !self.pos_on_board(pos) {
+                break;
+            }
+
+            if let Some(target) = to_pos {
                 if pos == target {
                     return None;
                 }
@@ -128,18 +150,16 @@ impl Board {
     }
 
     pub fn is_in_check(&self) -> bool {
-        use Color::*;
         use PieceType::*;
 
-        // origin from the king:: Color = moveturn color
+        // origin from_pos the king:: Color = moveturn color
         // assume it can move like all other pieces and see if it hits a piece with that piecetype
 
-        let Some(king_pos) = (match self.move_turn {
-            White => self.white_king,
-            Black => self.black_king,
-        }) else {
-            panic!("king position not set")
-        };
+        let king_pos = match self.move_turn {
+            Color::White => self.white_king,
+            Color::Black => self.black_king,
+        }
+        .expect("king position not set");
 
         // check for queen bishop and rooks
         for row_offset in -1..=1 {
@@ -151,7 +171,7 @@ impl Board {
                 if let Some(hit_pos) = self.check_clear_path(king_pos, None, row_offset, col_offset)
                 {
                     if let Some(hit_piece) = self.get(hit_pos) {
-                        let (d_row, d_col) = king_pos.delta(hit_pos);
+                        let (d_row, d_col) = hit_pos.delta(king_pos);
 
                         if hit_piece.color == self.move_turn {
                             continue;
@@ -159,18 +179,12 @@ impl Board {
 
                         match hit_piece.piece_type {
                             Bishop | Queen | Rook => {
-                                if hit_piece.move_shape_ok(row_offset, col_offset, false) {
-                                    println!("{:?}", self.move_turn);
-                                    println!("{:?}", king_pos);
-                                    println!("{:?}", hit_piece.piece_type);
-                                    println!("{:?}", hit_pos);
+                                if hit_piece.move_shape_ok(d_row, d_col, false) {
                                     return true;
                                 }
                             }
                             Pawn | King => {
-                                if hit_piece.move_shape_ok(-d_row, -d_col, true) {
-                                    println!("{:?}", hit_piece.piece_type);
-                                    println!("{:?}", hit_pos);
+                                if hit_piece.move_shape_ok(d_row, d_col, true) {
                                     return true;
                                 }
                             }
@@ -181,36 +195,33 @@ impl Board {
             }
         }
 
-        // King, pawn and bishop has to be a little different
-        const KNIGHT_MOV: [[i8; 2]; 8] = [
-            [2, 1],
-            [2, -1],
-            [-2, 1],
-            [-2, -1],
-            [1, 2],
-            [1, -2],
-            [-1, 2],
-            [-1, -2],
+        // King, pawn and bishop has to_pos be a little different
+        const KNIGHT_MOV: [(i8, i8); 8] = [
+            (2, 1),
+            (2, -1),
+            (-2, 1),
+            (-2, -1),
+            (1, 2),
+            (1, -2),
+            (-1, 2),
+            (-1, -2),
         ];
 
-        for [row_offset, col_offset] in KNIGHT_MOV {
-            let pos_row = king_pos.row as i8 + row_offset;
-            let pos_col = king_pos.col as i8 + col_offset;
-            let pos = Position {
-                row: pos_row,
-                col: pos_col,
+        for (row_offset, col_offset) in KNIGHT_MOV {
+            let hit_pos = Position {
+                row: king_pos.row + row_offset,
+                col: king_pos.col + col_offset,
             };
 
-            if !self.pos_on_board(pos) {
-                continue;
-            }
+            if self.pos_on_board(hit_pos) {
+                if let Some(hit_piece) = self.get(hit_pos) {
+                    if hit_piece.color == self.move_turn {
+                        continue;
+                    }
 
-            if let Some(piece) = self.get(pos) {
-                if piece.piece_type == Knight {
-                    println!("{:?}", self.move_turn);
-                    println!("{:?}", king_pos);
-                    println!("hit knight");
-                    return true;
+                    if hit_piece.piece_type == Knight {
+                        return true;
+                    }
                 }
             }
         }
@@ -225,8 +236,8 @@ mod tests {
 
     #[test]
     fn test_move() {
-        let mut from = Position { row: 0, col: 4 };
-        let mut to = Position { row: 0, col: 5 };
+        let mut from_pos = Position { row: 0, col: 4 };
+        let mut to_pos = Position { row: 0, col: 5 };
         let mut board = Board::new();
 
         let mut ascii: [&str; 8] = [
@@ -238,10 +249,10 @@ mod tests {
 
         board.setup_ascii(ascii);
         // board.print_ascii();
-        println!("\n THIS MOVE IS {}", board.move_piece(from, to));
+        assert!(board.move_piece(from_pos, to_pos).is_ok());
         // board.print_ascii();
 
-        from.col = 6;
-        to.col = 6;
+        from_pos.col = 6;
+        to_pos.col = 6;
     }
 }
