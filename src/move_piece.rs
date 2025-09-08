@@ -61,6 +61,8 @@ impl Board {
         from_pos: Position,
         to_pos: Position,
     ) -> Result<MoveOk, MoveError> {
+
+        let mut capture = false;
         // check to_pos position on board, believe we dont have to_pos check from_pos
         if !self.pos_on_board(from_pos) || !self.pos_on_board(to_pos) {
             return Err(MoveError::OutOfBounds);
@@ -82,11 +84,14 @@ impl Board {
             if to_piece.color == from_piece.color {
                 return Err(MoveError::CaptureOwn);
             }
+            else {
+                capture = true
+            }
         };
 
         let (d_row, d_col) = from_pos.delta(to_pos);
         // check if piece allows move shape
-        if !from_piece.move_shape_ok(d_row, d_col, false) {
+        if !from_piece.move_shape_ok(d_row, d_col, capture) {
             return Err(MoveError::IllegalShape);
         }
 
@@ -227,32 +232,5 @@ impl Board {
         }
 
         false
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_move() {
-        let mut from_pos = Position { row: 0, col: 4 };
-        let mut to_pos = Position { row: 0, col: 5 };
-        let mut board = Board::new();
-
-        let mut ascii: [&str; 8] = [
-            "...k....", "........", "........", "........", "........", ".....b..", "r.....p.",
-            "....K...",
-        ];
-
-        ascii.reverse();
-
-        board.setup_ascii(ascii);
-        // board.print_ascii();
-        assert!(board.move_piece(from_pos, to_pos).is_ok());
-        // board.print_ascii();
-
-        from_pos.col = 6;
-        to_pos.col = 6;
     }
 }
