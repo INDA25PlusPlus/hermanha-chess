@@ -34,13 +34,29 @@ impl Board {
         let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
         let to_piece = self.get(to_pos);
 
+        let is_enpassant = self.is_en_passant(from_pos, to_pos);
+        let en_passanted_pos = Position { row: (from_pos.row), col: (to_pos.col) };
+
+        if is_enpassant {
+            self.set(en_passanted_pos, None) //this capture the en passanted:D pawn
+        }
+
         self.set(from_pos, None);
         self.set(to_pos, Some(from_piece));
 
-        if self.is_in_check() {
+        if self.is_in_check() {  // use cloned board in the future.
             self.set(to_pos, to_piece);
             self.set(from_pos, Some(from_piece));
+            if is_enpassant {
+                self.set(en_passanted_pos, self.get(en_passanted_pos))
+            }
             return Err(MoveError::SelfCheck);
+        }
+
+        self.en_passant = None;
+
+        if from_piece.piece_type == PieceType::Pawn {
+            self.allows_en_passant(from_pos, to_pos);
         }
 
         self.move_turn = match self.move_turn {
@@ -89,7 +105,9 @@ impl Board {
             }
         };
 
-        let (d_row, d_col) = from_pos.delta(to_pos);
+        if self.is_en_passant(from_pos, to_pos) {capture = true}
+
+        let (d_row, d_col) = from_pos.delta(to_pos);        
         // check if piece allows move shape
         if !from_piece.move_shape_ok(d_row, d_col, capture, from_pos.row) {
             return Err(MoveError::IllegalShape);
@@ -115,7 +133,27 @@ impl Board {
         }
     }
 
-    // check clear path
+    pub fn is_en_passant(&self, from_pos: Position, to_pos: Position) -> bool{
+        let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
+        if from_piece.piece_type != PieceType::Pawn {return false;}
+        let (dr, dc) = from_pos.delta(to_pos);
+        if (dr.abs() != 1) | (dc.abs() != 1) {return false;}
+
+        if let Some(ep_pos) = self.en_passant {
+            if to_pos == ep_pos {
+                return true
+            }
+        }
+        false
+    }
+
+    pub fn allows_en_passant(&mut self, from_pos: Position, to_pos: Position) {
+        let (dr, _) = from_pos.delta(to_pos);
+        if dr.abs() == 2 {
+            self.en_passant = Some(Position{row: to_pos.row - dr.signum(), col: to_pos.col})
+        }
+    }
+    // check clear path 
 
     pub fn check_clear_path(
         &self,
