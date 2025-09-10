@@ -73,54 +73,54 @@ impl Board {
                 };
 
                 let piece = match ch {
-                    'p' => Some(Piece {
-                        piece_type: PieceType::Pawn,
-                        color: Color::Black,
-                    }),
-                    'r' => Some(Piece {
-                        piece_type: PieceType::Rook,
-                        color: Color::Black,
-                    }),
-                    'n' => Some(Piece {
-                        piece_type: PieceType::Knight,
-                        color: Color::Black,
-                    }),
-                    'b' => Some(Piece {
-                        piece_type: PieceType::Bishop,
-                        color: Color::Black,
-                    }),
-                    'q' => Some(Piece {
-                        piece_type: PieceType::Queen,
-                        color: Color::Black,
-                    }),
-                    'k' => Some(Piece {
-                        piece_type: PieceType::King,
-                        color: Color::Black,
-                    }),
-                    'P' => Some(Piece {
-                        piece_type: PieceType::Pawn,
-                        color: Color::White,
-                    }),
-                    'R' => Some(Piece {
-                        piece_type: PieceType::Rook,
-                        color: Color::White,
-                    }),
-                    'N' => Some(Piece {
-                        piece_type: PieceType::Knight,
-                        color: Color::White,
-                    }),
-                    'B' => Some(Piece {
-                        piece_type: PieceType::Bishop,
-                        color: Color::White,
-                    }),
-                    'Q' => Some(Piece {
-                        piece_type: PieceType::Queen,
-                        color: Color::White,
-                    }),
-                    'K' => Some(Piece {
-                        piece_type: PieceType::King,
-                        color: Color::White,
-                    }),
+                    'p' => Some(Piece::new(
+                        PieceType::Pawn,
+                        Color::Black,
+                    )),
+                    'r' => Some(Piece::new(
+                        PieceType::Rook,
+                        Color::Black,
+                    )),
+                    'n' => Some(Piece::new(
+                        PieceType::Knight,
+                        Color::Black,
+                    )),
+                    'b' => Some(Piece::new(
+                        PieceType::Bishop,
+                        Color::Black,
+                    )),
+                    'q' => Some(Piece::new(
+                        PieceType::Queen,
+                        Color::Black,
+                    )),
+                    'k' => Some(Piece::new(
+                        PieceType::King,
+                        Color::Black,
+                    )),
+                    'P' => Some(Piece::new(
+                        PieceType::Pawn,
+                        Color::White,
+                    )),
+                    'R' => Some(Piece::new(
+                        PieceType::Rook,
+                        Color::White,
+                    )),
+                    'N' => Some(Piece::new(
+                        PieceType::Knight,
+                        Color::White,
+                    )),
+                    'B' => Some(Piece::new(
+                        PieceType::Bishop,
+                        Color::White,
+                    )),
+                    'Q' => Some(Piece::new(
+                        PieceType::Queen,
+                        Color::White,
+                    )),
+                    'K' => Some(Piece::new(
+                        PieceType::King,
+                        Color::White,
+                    )),
                     '.' => None,
                     _ => None,
                 };

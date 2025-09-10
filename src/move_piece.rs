@@ -1,4 +1,4 @@
-use crate::board::{BOARD_COLS, BOARD_ROWS, Board, Position};
+use crate::board::{Board, Position, BOARD_COLS, BOARD_ROWS};
 use crate::pieces::{Color, PieceType};
 
 // ASCII board
@@ -18,6 +18,10 @@ pub enum MoveError {
 pub type MoveOk = ();
 
 impl Position {
+    pub fn new(row: i8, col:i8) -> Self{
+        Self {row, col}
+    }
+
     pub fn delta(&self, other: Position) -> (i8, i8) {
         (other.row - self.row, other.col - self.col)
     }
@@ -29,10 +33,16 @@ impl Board {
         from_pos: Position,
         to_pos: Position,
     ) -> Result<MoveOk, MoveError> {
-        self.pseudo_legal_move(from_pos, to_pos)?;
 
-        let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
-        let to_piece = self.get(to_pos);
+        
+        if self.pseudo_legal_move(from_pos, to_pos).is_err(){
+            if !self.castle_allowed(from_pos, to_pos) {
+                return Err(MoveError::CaptureOwn)
+            }
+        }
+        
+        let mut from_piece = self.get(from_pos).expect("validated: piece on from_pos");
+        // let to_piece = self.get(to_pos);
 
         let is_enpassant = self.is_en_passant(from_pos, to_pos);
         let en_passanted_pos = Position { row: (from_pos.row), col: (to_pos.col) };
@@ -41,18 +51,21 @@ impl Board {
             self.set(en_passanted_pos, None) //this capture the en passanted:D pawn
         }
 
-        self.set(from_pos, None);
-        self.set(to_pos, Some(from_piece));
-
-        if self.is_in_check() {  // use cloned board in the future.
-            self.set(to_pos, to_piece);
-            self.set(from_pos, Some(from_piece));
+        if self.move_in_check(from_pos, to_pos) {
             if is_enpassant {
                 self.set(en_passanted_pos, self.get(en_passanted_pos))
             }
             return Err(MoveError::SelfCheck);
         }
 
+        if self.is_castle(from_pos, to_pos) {
+            self.castle_allowed(from_pos, to_pos);
+        }
+
+        self.set(from_pos, None);
+        self.set(to_pos, Some(from_piece));
+
+        from_piece.has_moved = true;
         self.en_passant = None;
 
         if from_piece.piece_type == PieceType::Pawn {
@@ -67,6 +80,93 @@ impl Board {
         Ok(())
     }
 
+    pub fn is_castle(&self, from_pos: Position, to_pos: Position) -> bool{
+        let Some(from_piece) = self.get(from_pos) else {return false};
+        if from_piece.piece_type != PieceType::King {
+            return false
+        }
+
+        let (dr,dc) = from_pos.delta(to_pos);
+        if dc.abs() != 2 && dr != 0 {
+            return false
+        }
+
+        true
+    }
+
+    pub fn castle_allowed(&mut self, from_pos: Position, to_pos: Position) -> bool {
+        // check to_pos position on board, believe we dont have to_pos check from_pos
+        if !self.pos_on_board(from_pos) || !self.pos_on_board(to_pos) {
+            return false;
+        }
+
+        if from_pos == to_pos {
+            return false;
+        }
+
+        let Some(from_piece) = self.get(from_pos) else {return false};
+
+        // check turn
+        if from_piece.color != self.move_turn {
+            return false;
+        }
+        // check if own piece color is on square
+        if let Some(to_piece) = self.get(to_pos) {
+            if to_piece.color == from_piece.color {
+                return false;
+            }
+        };
+
+        if from_piece.piece_type != PieceType::King {
+            return false
+        }
+
+        let (dr,dc) = from_pos.delta(to_pos);
+        if dc.abs() != 2 || dr != 0 {
+            return false
+        }
+
+        if from_piece.has_moved {
+            return false;
+        }
+
+        let rook_pos = match from_piece.color {
+            Color::Black => {
+                if dc.signum() == 1 {
+                    Position{row: BOARD_ROWS-1, col: BOARD_COLS-1}
+                } else {
+                    Position{row: BOARD_ROWS-1, col: 0}
+                }
+
+            }
+            Color::White => {
+                if dc.signum() == 1 {
+                    Position{row: 0, col: BOARD_COLS-1}
+                } else {
+                    Position{row: 0, col: 0}
+                }
+
+            }
+        };
+
+        let Some(rook_piece) = self.get(rook_pos) else {return false};
+
+        if rook_piece.has_moved {return false}
+
+        if self.check_clear_path(from_pos, Some(rook_pos), 0, dc.signum()).is_some(){return false}
+        
+        let path_pos = Position{row: from_pos.row, col: from_pos.col + dc.signum()};
+
+        if self.move_in_check(from_pos, path_pos) || self.move_in_check(from_pos, from_pos){
+            return false
+        }
+
+        self.set(rook_pos, None);
+        self.set(path_pos, Some(rook_piece));
+
+        true
+    }
+
     #[inline]
     pub fn pos_on_board(&self, pos: Position) -> bool {
         pos.row >= 0 && pos.row < BOARD_ROWS && pos.col >= 0 && pos.col < BOARD_COLS
@@ -79,10 +179,12 @@ impl Board {
     ) -> Result<MoveOk, MoveError> {
 
         let mut capture = false;
+    
         // check to_pos position on board, believe we dont have to_pos check from_pos
         if !self.pos_on_board(from_pos) || !self.pos_on_board(to_pos) {
             return Err(MoveError::OutOfBounds);
         }
+
         if from_pos == to_pos {
             return Err(MoveError::SameSquare);
         }
@@ -192,17 +294,24 @@ impl Board {
         None
     }
 
-    pub fn is_in_check(&self) -> bool {
+    pub fn move_in_check(&self, from_pos: Position, to_pos: Position) -> bool {
         use PieceType::*;
+
+        let mut board_clone = self.clone();
+        let Some(from_piece) = board_clone.get(from_pos) else {return false};
+        board_clone.set(from_pos, None);
+        board_clone.set(to_pos, Some(from_piece));
 
         // origin from_pos the king:: Color = moveturn color
         // assume it can move like all other pieces and see if it hits a piece with that piecetype
 
-        let king_pos = match self.move_turn {
-            Color::White => self.white_king,
-            Color::Black => self.black_king,
+        let king_pos = match board_clone.move_turn {
+            Color::White => board_clone.white_king,
+            Color::Black => board_clone.black_king,
         }
         .expect("king position not set");
+
+        
 
         // check for queen bishop and rooks
         for row_offset in -1..=1 {
@@ -211,12 +320,12 @@ impl Board {
                     continue;
                 }
 
-                if let Some(hit_pos) = self.check_clear_path(king_pos, None, row_offset, col_offset)
+                if let Some(hit_pos) = board_clone.check_clear_path(king_pos, None, row_offset, col_offset)
                 {
-                    if let Some(hit_piece) = self.get(hit_pos) {
+                    if let Some(hit_piece) = board_clone.get(hit_pos) {
                         let (d_row, d_col) = hit_pos.delta(king_pos);
 
-                        if hit_piece.color == self.move_turn {
+                        if hit_piece.color == board_clone.move_turn {
                             continue;
                         }
 
