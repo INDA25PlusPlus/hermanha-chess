@@ -14,6 +14,7 @@ pub struct Position {
     pub col: i8,
 }
 
+#[derive(Clone)]
 pub struct Board {
     pub squares: [[Option<Piece>; BOARD_COLS as usize]; BOARD_ROWS as usize],
     pub move_turn: Color,
