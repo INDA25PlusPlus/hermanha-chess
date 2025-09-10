@@ -20,6 +20,7 @@ pub struct Board {
     pub move_turn: Color,
     pub white_king: Option<Position>,
     pub black_king: Option<Position>, //cache the kings insted of looping through board looking for it??? good??
+    pub en_passant: Option<Position>
 }
 
 impl Board {
@@ -29,6 +30,7 @@ impl Board {
             move_turn: Color::White,
             white_king: None,
             black_king: None,
+            en_passant: None
         }
     }
 
@@ -61,6 +63,7 @@ impl Board {
         self.squares = [[None; BOARD_COLS as usize]; BOARD_ROWS as usize];
         self.white_king = None;
         self.black_king = None;
+        self.en_passant = None;
 
         for (row, row_str) in ascii.iter().enumerate() {
             for (col, ch) in row_str.chars().enumerate() {
