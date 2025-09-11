@@ -378,7 +378,7 @@ impl Board {
             Color::White => board_clone.white_king,
             Color::Black => board_clone.black_king,
         }
-        .expect("king position not set");
+        .expect("validated: king position set");
 
         if board_clone.is_square_attacked(king_pos){
             return Err(MoveError::SelfCheck)
