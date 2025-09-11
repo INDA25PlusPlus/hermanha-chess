@@ -1,4 +1,4 @@
-use crate::board::{BOARD_COLS, BOARD_ROWS, Board, Position};
+use crate::board::{Board, Position, BOARD_COLS, BOARD_ROWS};
 use crate::pieces::{Color, PieceType};
 
 // ASCII board
@@ -13,11 +13,26 @@ pub enum MoveError {
     SameSquare,
     OutOfBounds,
     CaptureOwn,
+    KingHasMoved,
+    RookHasMoved
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoveType {
+    Normal,
+    EnPassant,
+    Castle,
+    PawnPromotion,
+    Capture
 }
 
 pub type MoveOk = ();
 
 impl Position {
+    pub fn new(row: i8, col:i8) -> Self{
+        Self {row, col}
+    }
+
     pub fn delta(&self, other: Position) -> (i8, i8) {
         (other.row - self.row, other.col - self.col)
     }
@@ -29,60 +44,35 @@ impl Board {
         from_pos: Position,
         to_pos: Position,
     ) -> Result<MoveOk, MoveError> {
-        self.pseudo_legal_move(from_pos, to_pos)?;
 
-        let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
-        let to_piece = self.get(to_pos);
+        self.basic_precheck(from_pos, to_pos)?;
+        let move_type: MoveType = self.classify_move_type(from_pos, to_pos);
 
-        let is_enpassant = self.is_en_passant(from_pos, to_pos);
-        let en_passanted_pos = Position { row: (from_pos.row), col: (to_pos.col) };
+        match move_type{
+            MoveType::Capture => self.normal_is_legal(from_pos, to_pos, true),
+            MoveType::Castle => self.castle_is_legal(from_pos, to_pos),
+            MoveType::EnPassant => self.normal_is_legal(from_pos, to_pos, true),
+            MoveType::Normal => self.normal_is_legal(from_pos, to_pos, false),
+            MoveType::PawnPromotion => Ok(()),
+        }?;
 
-        if is_enpassant {
-            self.set(en_passanted_pos, None) //this capture the en passanted:D pawn
-        }
-
-        self.set(from_pos, None);
-        self.set(to_pos, Some(from_piece));
-
-        if self.is_in_check() {  // use cloned board in the future.
-            self.set(to_pos, to_piece);
-            self.set(from_pos, Some(from_piece));
-            if is_enpassant {
-                self.set(en_passanted_pos, self.get(en_passanted_pos))
-            }
-            return Err(MoveError::SelfCheck);
-        }
-
-        self.en_passant = None;
-
-        if from_piece.piece_type == PieceType::Pawn {
-            self.allows_en_passant(from_pos, to_pos);
-        }
-
-        self.move_turn = match self.move_turn {
-            Color::White => Color::Black,
-            Color::Black => Color::White,
-        };
+        self.move_in_check(from_pos, to_pos, move_type)?;
+        self.set_values(from_pos, to_pos, move_type);
 
         Ok(())
     }
 
-    #[inline]
-    pub fn pos_on_board(&self, pos: Position) -> bool {
-        pos.row >= 0 && pos.row < BOARD_ROWS && pos.col >= 0 && pos.col < BOARD_COLS
-    }
-
-    pub fn pseudo_legal_move(
+    pub fn basic_precheck(
         &self,
         from_pos: Position,
         to_pos: Position,
     ) -> Result<MoveOk, MoveError> {
-
-        let mut capture = false;
+    
         // check to_pos position on board, believe we dont have to_pos check from_pos
         if !self.pos_on_board(from_pos) || !self.pos_on_board(to_pos) {
             return Err(MoveError::OutOfBounds);
         }
+
         if from_pos == to_pos {
             return Err(MoveError::SameSquare);
         }
@@ -100,12 +90,126 @@ impl Board {
             if to_piece.color == from_piece.color {
                 return Err(MoveError::CaptureOwn);
             }
-            else {
-                capture = true
-            }
         };
+        
+        Ok(())
+    }
 
-        if self.is_en_passant(from_pos, to_pos) {capture = true}
+    pub fn classify_move_type(&self, from_pos: Position, to_pos: Position) -> MoveType{
+
+        // capture
+        if self.is_capture(from_pos, to_pos) {
+            return MoveType::Capture
+        }
+
+        // en_passant
+        if self.is_en_passant(from_pos, to_pos) {
+            return MoveType::EnPassant
+        }
+
+        // castle
+        if self.is_castle(from_pos, to_pos){
+            return MoveType::Castle
+        }
+
+        return MoveType::Normal;
+        
+    }
+
+    pub fn is_capture(&self, from_pos: Position, to_pos: Position) -> bool {
+            let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
+            if let Some(to_piece) = self.get(to_pos) {
+                if to_piece.color != from_piece.color {
+                    return true
+                }
+            }
+            false
+    }
+
+    pub fn is_castle(&self, from_pos: Position, to_pos: Position) -> bool{
+        let Some(from_piece) = self.get(from_pos) else {return false};
+        if from_piece.piece_type != PieceType::King {
+            return false
+        }
+
+        let (dr,dc) = from_pos.delta(to_pos);
+        if dc.abs() != 2 || dr != 0 {
+            return false
+        }
+
+        true
+    }
+
+    pub fn is_en_passant(&self, from_pos: Position, to_pos: Position) -> bool{
+        let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
+        if from_piece.piece_type != PieceType::Pawn {return false;}
+        let (dr, dc) = from_pos.delta(to_pos);
+        if (dr.abs() != 1) || (dc.abs() != 1) {return false;}
+
+        if let Some(ep_pos) = self.en_passant {
+            if to_pos == ep_pos {
+                return true
+            }
+        }
+        false
+    }
+
+    pub fn find_rook(&self, from_pos: Position, to_pos: Position) -> Position{
+        let from_piece = self.get(from_pos).expect("validated: from_pos has piece");
+
+        let (_,dc) = from_pos.delta(to_pos);
+
+        match from_piece.color {
+            Color::Black => {
+                if dc.signum() == 1 {
+                    Position{row: BOARD_ROWS-1, col: BOARD_COLS-1}
+                } else {
+                    Position{row: BOARD_ROWS-1, col: 0}
+                }
+
+            }
+            Color::White => {
+                if dc.signum() == 1 {
+                    Position{row: 0, col: BOARD_COLS-1}
+                } else {
+                    Position{row: 0, col: 0}
+                }
+
+            }
+        }
+    }
+
+    pub fn castle_is_legal(&self, from_pos: Position, to_pos: Position) -> Result<MoveOk, MoveError> {
+
+        let from_piece = self.get(from_pos).expect("validated: from_pos has piece");
+
+        let (dr,dc) = from_pos.delta(to_pos);
+
+        if from_piece.has_moved {
+            return Err(MoveError::KingHasMoved);
+        }
+
+        let rook_pos = self.find_rook(from_pos, to_pos);
+
+        let Some(rook_piece) = self.get(rook_pos) else {return Err(MoveError::RookHasMoved)};
+        if rook_piece.piece_type != PieceType::Rook {return Err(MoveError::RookHasMoved);}
+        if rook_piece.has_moved {return Err(MoveError::RookHasMoved)}
+
+        if let Some(blocked_pos) = self.check_clear_path(from_pos, Some(rook_pos), dr, dc.signum()){
+            return Err(MoveError::Blocked { at: (blocked_pos) })
+        }
+        
+        let path_pos = Position{row: from_pos.row, col: from_pos.col + dc.signum()};
+
+        if self.is_square_attacked(path_pos) {return Err(MoveError::SelfCheck)}
+        if self.is_square_attacked(from_pos) {return Err(MoveError::SelfCheck)}
+        if self.is_square_attacked(to_pos) {return Err(MoveError::SelfCheck)}
+
+        Ok(())
+    }
+
+    pub fn normal_is_legal (&self, from_pos: Position, to_pos: Position, capture: bool) -> Result<MoveOk, MoveError> {
+        let from_piece = self.get(from_pos).expect("validate: from_pos has piece");
 
         let (d_row, d_col) = from_pos.delta(to_pos);        
         // check if piece allows move shape
@@ -125,35 +229,18 @@ impl Board {
                     self.check_clear_path(from_pos, Some(to_pos), row_offset, col_offset)
                 {
                     return Err(MoveError::Blocked { at: (block_pos) });
-                } else {
-                    return Ok(());
                 }
             }
-            _ => Ok(()),
+            _ => return Ok(()),
         }
-    }
 
-    pub fn is_en_passant(&self, from_pos: Position, to_pos: Position) -> bool{
-        let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
-        if from_piece.piece_type != PieceType::Pawn {return false;}
-        let (dr, dc) = from_pos.delta(to_pos);
-        if (dr.abs() != 1) | (dc.abs() != 1) {return false;}
-
-        if let Some(ep_pos) = self.en_passant {
-            if to_pos == ep_pos {
-                return true
-            }
-        }
-        false
+        Ok(())
     }
-
-    pub fn allows_en_passant(&mut self, from_pos: Position, to_pos: Position) {
-        let (dr, _) = from_pos.delta(to_pos);
-        if dr.abs() == 2 {
-            self.en_passant = Some(Position{row: to_pos.row - dr.signum(), col: to_pos.col})
-        }
+    
+    #[inline]
+    pub fn pos_on_board(&self, pos: Position) -> bool {
+        pos.row >= 0 && pos.row < BOARD_ROWS && pos.col >= 0 && pos.col < BOARD_COLS
     }
-    // check clear path 
 
     pub fn check_clear_path(
         &self,
@@ -192,17 +279,8 @@ impl Board {
         None
     }
 
-    pub fn is_in_check(&self) -> bool {
+    pub fn is_square_attacked(&self, pos: Position) -> bool{
         use PieceType::*;
-
-        // origin from_pos the king:: Color = moveturn color
-        // assume it can move like all other pieces and see if it hits a piece with that piecetype
-
-        let king_pos = match self.move_turn {
-            Color::White => self.white_king,
-            Color::Black => self.black_king,
-        }
-        .expect("king position not set");
 
         // check for queen bishop and rooks
         for row_offset in -1..=1 {
@@ -211,10 +289,10 @@ impl Board {
                     continue;
                 }
 
-                if let Some(hit_pos) = self.check_clear_path(king_pos, None, row_offset, col_offset)
+                if let Some(hit_pos) = self.check_clear_path(pos, None, row_offset, col_offset)
                 {
                     if let Some(hit_piece) = self.get(hit_pos) {
-                        let (d_row, d_col) = hit_pos.delta(king_pos);
+                        let (d_row, d_col) = hit_pos.delta(pos);
 
                         if hit_piece.color == self.move_turn {
                             continue;
@@ -252,8 +330,8 @@ impl Board {
 
         for (row_offset, col_offset) in KNIGHT_MOV {
             let hit_pos = Position {
-                row: king_pos.row + row_offset,
-                col: king_pos.col + col_offset,
+                row: pos.row + row_offset,
+                col: pos.col + col_offset,
             };
 
             if self.pos_on_board(hit_pos) {
@@ -270,6 +348,79 @@ impl Board {
         }
 
         false
+    }
+
+    pub fn move_in_check(&self, from_pos: Position, to_pos: Position, move_type: MoveType) -> Result<MoveOk, MoveError> {
+        let mut board_clone = self.clone();
+        let from_piece = board_clone.get(from_pos).expect("validated: from_pos has piece");
+
+        if move_type == MoveType::EnPassant {
+            let en_passanted_pos = Position { row: (from_pos.row), col: (to_pos.col) };
+            board_clone.set(en_passanted_pos, None);
+        }
+
+        if move_type == MoveType::Castle {
+            let rook_from = board_clone.find_rook(from_pos, to_pos);
+            let rook_to = Position { row: from_pos.row, col: from_pos.col + (to_pos.col - from_pos.col).signum() };
+            let rook_piece = board_clone.get(rook_from).expect("validated: rook_from");
+            board_clone.set(rook_from, None);
+            board_clone.set(rook_to, Some(rook_piece));
+        }
+
+        board_clone.set(from_pos, None);
+        board_clone.set(to_pos, Some(from_piece));
+
+        
+        // origin from_pos the king:: Color = moveturn color
+        // assume it can move like all other pieces and see if it hits a piece with that piecetype
+
+        let king_pos = match board_clone.move_turn {
+            Color::White => board_clone.white_king,
+            Color::Black => board_clone.black_king,
+        }
+        .expect("king position not set");
+
+        if board_clone.is_square_attacked(king_pos){
+            return Err(MoveError::SelfCheck)
+        }
+
+        Ok(())
+    }
+
+    pub fn set_values(&mut self, from_pos: Position, to_pos: Position, move_type: MoveType){
+
+        let mut from_piece = self.get(from_pos).expect("validated: from_pos has piece");
+        let (dr, dc) = from_pos.delta(to_pos);
+
+        if move_type == MoveType::EnPassant {
+            let en_passanted_pos = Position { row: (from_pos.row), col: (to_pos.col) };
+            self.set(en_passanted_pos, None)
+        }
+
+        if move_type == MoveType::Castle {
+            let rook_from = self.find_rook(from_pos, to_pos);
+            let rook_to = Position{row: from_pos.row, col: from_pos.col + dc.signum()};
+            let mut rook_piece = self.get(rook_from).expect("validated: rook_from has piece");
+            rook_piece.has_moved = true;
+            self.set(rook_from, None);
+            self.set(rook_to, Some(rook_piece))
+        }
+
+        self.set(from_pos, None);
+        from_piece.has_moved = true;
+        self.set(to_pos, Some(from_piece));
+
+        self.en_passant = None;
+        if from_piece.piece_type == PieceType::Pawn {
+            if dr.abs() == 2 && dc == 0{
+                self.en_passant = Some(Position{row: to_pos.row - dr.signum(), col: to_pos.col})
+            }
+        }        
+
+        self.move_turn = match self.move_turn {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        };
     }
 }
 
@@ -391,7 +542,7 @@ mod tests {
     fn test_all_legal_moves_pos_2() {
         // this test can only do 1 depth for now as it requires castles and en passants.
         let fen: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R";
-        let expected: Vec<usize> = vec![46, 2039, 97862]; 
+        let expected: Vec<usize> = vec![48, 2039, 97862]; 
 
         let depth = 3;
         let totals = all_legal_moves_for_fen(fen, depth);
@@ -410,4 +561,28 @@ mod tests {
 
         assert_eq!(totals, expected);
     }
+
+    // #[test]
+    // fn test_all_legal_moves_pos_4() {
+    //     // this test can only do 2 depth for now as it requires castles and en passants for the third.
+    //     let fen: &str = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1";
+    //     let expected: Vec<usize> = vec![6, 264, 9467]; 
+
+    //     let depth = 3;
+    //     let totals = all_legal_moves_for_fen(fen, depth);
+
+    //     assert_eq!(totals, expected);
+    // }
+
+    // #[test]
+    // fn test_all_legal_moves_pos_5() {
+    //     // this test can only do 2 depth for now as it requires castles and en passants for the third.
+    //     let fen: &str = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R";
+    //     let expected: Vec<usize> = vec![44, 1486, 62379]; 
+
+    //     let depth = 3;
+    //     let totals = all_legal_moves_for_fen(fen, depth);
+
+    //     assert_eq!(totals, expected);
+    // }
 }
