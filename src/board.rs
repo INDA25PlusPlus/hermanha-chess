@@ -12,6 +12,16 @@ pub struct Position {
     pub col: i8,
 }
 
+impl Position {
+    pub fn new(row: i8, col:i8) -> Self{
+        Self {row, col}
+    }
+
+    pub fn delta(&self, other: Position) -> (i8, i8) {
+        (other.row - self.row, other.col - self.col)
+    }
+}
+
 #[derive(Clone)]
 pub struct Board {
     pub squares: [[Option<Piece>; BOARD_COLS as usize]; BOARD_ROWS as usize],
@@ -30,6 +40,11 @@ impl Board {
             black_king: None,
             en_passant: None
         }
+    }
+
+    #[inline]
+    pub fn pos_on_board(&self, pos: Position) -> bool {
+        pos.row >= 0 && pos.row < BOARD_ROWS && pos.col >= 0 && pos.col < BOARD_COLS
     }
 
     pub fn get(&self, position: Position) -> Option<Piece> {
@@ -100,36 +115,6 @@ impl Board {
             }
         }
     }
-
-    pub fn print_ascii(&self) {
-        // took some help from chat to debug using this. easier to see
-        for row in 0..BOARD_ROWS {
-            for col in 0..BOARD_COLS {
-                match self.squares[row as usize][col as usize] {
-                    Some(piece) => {
-                        let ch = match (piece.piece_type, piece.color) {
-                            (PieceType::Pawn, Color::White) => 'P',
-                            (PieceType::Rook, Color::White) => 'R',
-                            (PieceType::Knight, Color::White) => 'N',
-                            (PieceType::Bishop, Color::White) => 'B',
-                            (PieceType::Queen, Color::White) => 'Q',
-                            (PieceType::King, Color::White) => 'K',
-
-                            (PieceType::Pawn, Color::Black) => 'p',
-                            (PieceType::Rook, Color::Black) => 'r',
-                            (PieceType::Knight, Color::Black) => 'n',
-                            (PieceType::Bishop, Color::Black) => 'b',
-                            (PieceType::Queen, Color::Black) => 'q',
-                            (PieceType::King, Color::Black) => 'k',
-                        };
-                        print!("{}", ch);
-                    }
-                    None => print!("."),
-                }
-            }
-            println!();
-        }
-    }
 }
 
 #[cfg(test)]
@@ -140,5 +125,6 @@ mod tests {
     fn test_generate_starting_board() {
         let mut board = Board::new();
         board.setup_fen(FEN);
+        assert_eq!(board.get(Position{row:0,col:0}).unwrap().piece_type, PieceType::Rook)
     }
 }

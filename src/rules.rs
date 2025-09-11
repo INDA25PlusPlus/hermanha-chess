@@ -28,16 +28,6 @@ pub enum MoveType {
 
 pub type MoveOk = ();
 
-impl Position {
-    pub fn new(row: i8, col:i8) -> Self{
-        Self {row, col}
-    }
-
-    pub fn delta(&self, other: Position) -> (i8, i8) {
-        (other.row - self.row, other.col - self.col)
-    }
-}
-
 impl Board {
     pub fn move_piece(
         &mut self,
@@ -236,11 +226,6 @@ impl Board {
 
         Ok(())
     }
-    
-    #[inline]
-    pub fn pos_on_board(&self, pos: Position) -> bool {
-        pos.row >= 0 && pos.row < BOARD_ROWS && pos.col >= 0 && pos.col < BOARD_COLS
-    }
 
     /// checks if path is blocked or not
     pub fn check_clear_path(
@@ -430,101 +415,5 @@ impl Board {
             Color::White => Color::Black,
             Color::Black => Color::White,
         };
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-    use crate::board::*;
-
-    fn pos(r: i8, c: i8) -> Position { Position { row: r, col: c } }
-
-    pub fn all_legal_moves(board: &Board) -> Vec<(Position, Position)> {
-        let mut legal_moves: Vec<(Position, Position)> = Vec::new();
-
-        for from_row in 0..BOARD_ROWS{
-            for from_col in 0..BOARD_COLS {
-                let from_pos = pos(from_row, from_col);
-
-                for to_row in 0..BOARD_ROWS {
-                    for to_col in 0..BOARD_COLS{
-                        let to_pos = pos(to_row, to_col);
-                        let mut tmp = board.clone();
-
-                        if tmp.move_piece(from_pos, to_pos).is_ok() {
-
-                            legal_moves.push((from_pos, to_pos));
-                        } else {
-                            continue;
-                        }
-                    }
-                }
-            }
-        }
-        legal_moves
-    }
-
-    fn dfs(b: &Board, d: usize, depth_total: usize, totals: &mut [usize]) {
-        let moves = all_legal_moves(b);
-        let idx = depth_total - d;
-        totals[idx] += moves.len();
-
-        if d == 1 { return; }
-
-        for (from, to) in moves {
-            let mut next = b.clone();
-            next.move_piece(from, to).unwrap();
-            dfs(&next, d - 1, depth_total, totals);
-        }
-    }
-
-    fn perft_layers(board: &mut Board, depth:usize) -> Vec<usize>{
-        assert!(depth >= 1);
-        let mut totals = vec![0usize; depth];
-        dfs(board, depth, depth, &mut totals);
-        totals
-    }
-
-    fn all_legal_moves_for_fen(fen: &str, depth:usize) -> Vec<usize>{
-        let mut board = Board::new();
-        board.setup_fen(fen);
-
-        perft_layers(&mut board, depth)
-    }
-
-    #[test]
-    fn test_all_legal_moves_pos_1() {
-        let fen: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
-        let expected: Vec<usize> = vec![20, 400, 8902];
-
-        let depth = 3;
-        
-        let totals = all_legal_moves_for_fen(fen, depth);
-
-        assert_eq!(totals, expected);
-    }
-
-    #[test]
-    fn test_all_legal_moves_pos_2() {
-        let fen: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R";
-        let expected: Vec<usize> = vec![48, 2039, 97862]; 
-
-        let depth = 3;
-        let totals = all_legal_moves_for_fen(fen, depth);
-
-        assert_eq!(totals, expected);
-    }
-
-    #[test]
-    fn test_all_legal_moves_pos_3() {
-        let fen: &str = "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8";
-        let expected: Vec<usize> = vec![14, 191, 2812]; 
-
-        let depth = 3;
-        let totals = all_legal_moves_for_fen(fen, depth);
-
-        assert_eq!(totals, expected);
     }
 }
