@@ -19,44 +19,53 @@ pub enum MoveError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MoveType {
-    Normal,
+    Normal{is_capture: bool},
     EnPassant,
     Castle,
-    PawnPromotion,
-    Capture
+    PawnPromotion{is_capture: bool},
 }
-
-pub type MoveOk = ();
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoveOk{
+    Done,
+    NeedsPromotion
+}
 
 impl Board {
     pub fn move_piece(
         &mut self,
         from_pos: Position,
         to_pos: Position,
+        prom_piece_type: Option<PieceType>
     ) -> Result<MoveOk, MoveError> {
 
         self.basic_precheck(from_pos, to_pos)?;
         let move_type: MoveType = self.classify_move_type(from_pos, to_pos);
 
         match move_type{
-            MoveType::Capture => self.normal_is_legal(from_pos, to_pos, true),
             MoveType::Castle => self.castle_is_legal(from_pos, to_pos),
             MoveType::EnPassant => self.normal_is_legal(from_pos, to_pos, true),
-            MoveType::Normal => self.normal_is_legal(from_pos, to_pos, false),
-            MoveType::PawnPromotion => Ok(()),
+            MoveType::Normal{is_capture} => self.normal_is_legal(from_pos, to_pos, is_capture),
+            MoveType::PawnPromotion{is_capture} => self.normal_is_legal(from_pos, to_pos, is_capture),
         }?;
 
         self.move_in_check(from_pos, to_pos, move_type)?;
-        self.set_values(from_pos, to_pos, move_type);
+        
+        if let MoveType::PawnPromotion { .. } = move_type {
+            if prom_piece_type.is_none() {
+                return Ok(MoveOk::NeedsPromotion);
+            }
+        }
 
-        Ok(())
+        self.set_values(from_pos, to_pos, move_type, prom_piece_type);
+
+        Ok(MoveOk::Done)
     }
 
     pub fn basic_precheck(
         &self,
         from_pos: Position,
         to_pos: Position,
-    ) -> Result<MoveOk, MoveError> {
+    ) -> Result<(), MoveError> {
     
         // check to_pos position on board, believe we dont have to_pos check from_pos
         if !self.pos_on_board(from_pos) || !self.pos_on_board(to_pos) {
@@ -86,12 +95,6 @@ impl Board {
     }
 
     pub fn classify_move_type(&self, from_pos: Position, to_pos: Position) -> MoveType{
-
-        // capture
-        if self.is_capture(from_pos, to_pos) {
-            return MoveType::Capture
-        }
-
         // en_passant
         if self.is_en_passant(from_pos, to_pos) {
             return MoveType::EnPassant
@@ -102,8 +105,14 @@ impl Board {
             return MoveType::Castle
         }
 
-        return MoveType::Normal;
-        
+        let is_capture = self.is_capture(from_pos, to_pos);
+
+        // promotion
+        if self.is_promotion(from_pos, to_pos){
+            return MoveType::PawnPromotion{is_capture}
+        }
+
+        MoveType::Normal{is_capture}
     }
 
     pub fn is_capture(&self, from_pos: Position, to_pos: Position) -> bool {
@@ -144,6 +153,17 @@ impl Board {
         false
     }
 
+    pub fn is_promotion(&self, from_pos:Position, to_pos: Position) -> bool {
+        let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
+        if from_piece.piece_type == PieceType::Pawn {
+            if to_pos.row == BOARD_ROWS - 1 || to_pos.row == 0 {
+                return true
+            }
+        }
+        
+        false
+    }
+
     pub fn find_rook(&self, from_pos: Position, to_pos: Position) -> Position{
         let from_piece = self.get(from_pos).expect("validated: from_pos has piece");
 
@@ -169,13 +189,23 @@ impl Board {
         }
     }
 
-    pub fn castle_is_legal(&self, from_pos: Position, to_pos: Position) -> Result<MoveOk, MoveError> {
+    pub fn castle_is_legal(&self, from_pos: Position, to_pos: Position) -> Result<(), MoveError> {
 
         let from_piece = self.get(from_pos).expect("validated: from_pos has piece");
 
         let (dr,dc) = from_pos.delta(to_pos);
 
         if from_piece.has_moved {
+            return Err(MoveError::KingHasMoved);
+        }
+
+        let expected_king_row = match from_piece.color {
+            Color::White => 0,
+            Color::Black => 7,
+        };
+        let expected_king_col = 4;
+        
+        if from_pos.row != expected_king_row || from_pos.col != expected_king_col {
             return Err(MoveError::KingHasMoved);
         }
 
@@ -198,7 +228,7 @@ impl Board {
         Ok(())
     }
 
-    pub fn normal_is_legal (&self, from_pos: Position, to_pos: Position, capture: bool) -> Result<MoveOk, MoveError> {
+    pub fn normal_is_legal (&self, from_pos: Position, to_pos: Position, capture: bool) -> Result<(), MoveError> {
         let from_piece = self.get(from_pos).expect("validate: from_pos has piece");
 
         let (d_row, d_col) = from_pos.delta(to_pos);        
@@ -282,22 +312,20 @@ impl Board {
                     if let Some(hit_piece) = self.get(hit_pos) {
                         let (d_row, d_col) = hit_pos.delta(pos);
 
-                        if hit_piece.color == self.move_turn {
-                            continue;
-                        }
-
-                        match hit_piece.piece_type {
-                            Bishop | Queen | Rook => {
-                                if hit_piece.move_shape_ok(d_row, d_col, false, hit_pos.row) {
-                                    return true;
+                        if hit_piece.color != self.move_turn {
+                            match hit_piece.piece_type {
+                                Bishop | Queen | Rook => {
+                                    if hit_piece.move_shape_ok(d_row, d_col, false, hit_pos.row) {
+                                        return true;
+                                    }
                                 }
-                            }
-                            Pawn | King => {
-                                if hit_piece.move_shape_ok(d_row, d_col, true, hit_pos.row) {
-                                    return true;
+                                Pawn | King => {
+                                    if hit_piece.move_shape_ok(d_row, d_col, true, hit_pos.row) {
+                                        return true;
+                                    }
                                 }
+                                _ => continue,
                             }
-                            _ => continue,
                         }
                     }
                 }
@@ -324,12 +352,10 @@ impl Board {
 
             if self.pos_on_board(hit_pos) {
                 if let Some(hit_piece) = self.get(hit_pos) {
-                    if hit_piece.color == self.move_turn {
-                        continue;
-                    }
-
-                    if hit_piece.piece_type == Knight {
-                        return true;
+                    if hit_piece.color != self.move_turn {
+                        if hit_piece.piece_type == Knight {
+                            return true;
+                        }
                     }
                 }
             }
@@ -340,7 +366,7 @@ impl Board {
     
     /// This functions checks if a move will give check.
     /// We try to do the move in a clone and checks if king is attacked
-    pub fn move_in_check(&self, from_pos: Position, to_pos: Position, move_type: MoveType) -> Result<MoveOk, MoveError> {
+    pub fn move_in_check(&self, from_pos: Position, to_pos: Position, move_type: MoveType) -> Result<(), MoveError> {
         
 
         let mut board_clone = self.clone();
@@ -362,11 +388,15 @@ impl Board {
         board_clone.set(from_pos, None);
         board_clone.set(to_pos, Some(from_piece));
         
-        let king_pos = match board_clone.move_turn {
-            Color::White => board_clone.white_king,
-            Color::Black => board_clone.black_king,
-        }
-        .expect("validated: king position set");
+        let king_pos = if from_piece.piece_type == PieceType::King {
+            to_pos
+        } else {
+            match from_piece.color {
+                Color::White => board_clone.white_king,
+                Color::Black => board_clone.black_king,
+            }
+            .expect("validated: king position set")
+        };
 
         if board_clone.is_square_attacked(king_pos){
             return Err(MoveError::SelfCheck)
@@ -381,10 +411,12 @@ impl Board {
     /// has moved, for the moved piece
     /// remove pieces if capture (happens automatically if not en passant)
     /// switch move_turn 
-    pub fn set_values(&mut self, from_pos: Position, to_pos: Position, move_type: MoveType){
+    pub fn set_values(&mut self, from_pos: Position, to_pos: Position, move_type: MoveType, prom_piece_type: Option<PieceType>){
 
         let mut from_piece = self.get(from_pos).expect("validated: from_pos has piece");
         let (dr, dc) = from_pos.delta(to_pos);
+
+        let set_ep = matches!(from_piece.piece_type, PieceType::Pawn) && dr.abs() == 2 && dc == 0;
 
         if move_type == MoveType::EnPassant {
             let en_passanted_pos = Position { row: (from_pos.row), col: (to_pos.col) };
@@ -400,16 +432,20 @@ impl Board {
             self.set(rook_to, Some(rook_piece))
         }
 
+        if let MoveType::PawnPromotion { .. } = move_type{
+            let pt = prom_piece_type.expect("validated: prom_piece_type has PieceType");
+            from_piece.piece_type = pt
+        }
+
         self.set(from_pos, None);
         from_piece.has_moved = true;
         self.set(to_pos, Some(from_piece));
 
-        self.en_passant = None;
-        if from_piece.piece_type == PieceType::Pawn {
-            if dr.abs() == 2 && dc == 0{
-                self.en_passant = Some(Position{row: to_pos.row - dr.signum(), col: to_pos.col})
-            }
-        }        
+        self.en_passant = if set_ep {
+            Some(Position { row: to_pos.row - dr.signum(), col: to_pos.col })
+        } else {
+            None
+        };
 
         self.move_turn = match self.move_turn {
             Color::White => Color::Black,

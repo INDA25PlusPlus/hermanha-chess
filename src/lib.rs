@@ -19,10 +19,10 @@ impl Board {
     pub fn play(&mut self, from: (i8,i8), to: (i8, i8)) -> Result<MoveOk, MoveError> {
         let from_pos = Position{row: from.0, col: from.1};
         let to_pos = Position{row: to.0, col: to.1};
-        self.move_piece(from_pos, to_pos)
+        self.move_piece(from_pos, to_pos, None)
     }
 
-    pub fn legal_moves(&self) -> Vec<(Position, Position)> {
+    pub fn legal_moves(&self) -> Vec<(Position, Position, Option<PieceType>)> {
         movegen::all_legal_moves(self)
     }
 
