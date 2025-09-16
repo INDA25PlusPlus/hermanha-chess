@@ -1,9 +1,13 @@
-use crate::{board::*};
+use crate::{board::*, MoveOk, PieceType::*, PieceType};
 
 fn pos(r: i8, c: i8) -> Position { Position { row: r, col: c } }
 
-pub fn all_legal_moves(board: &Board) -> Vec<(Position, Position)> {
-    let mut legal_moves: Vec<(Position, Position)> = Vec::new();
+const PROMOTION_PIECES: [PieceType; 4] = [Queen, Rook, Bishop, Knight];
+
+pub fn all_legal_moves(board: &Board) -> Vec<(Position, Position, Option<PieceType>)> {
+    let mut legal_moves: Vec<(Position, Position, Option<PieceType>)> = Vec::new();
+
+    
 
     for from_row in 0..BOARD_ROWS{
         for from_col in 0..BOARD_COLS {
@@ -14,11 +18,20 @@ pub fn all_legal_moves(board: &Board) -> Vec<(Position, Position)> {
                     let to_pos = pos(to_row, to_col);
                     let mut tmp = board.clone();
 
-                    if tmp.move_piece(from_pos, to_pos).is_ok() {
-
-                        legal_moves.push((from_pos, to_pos));
-                    } else {
-                        continue;
+                    match tmp.move_piece(from_pos, to_pos, None) {
+                        Ok(MoveOk::Done) => {
+                            legal_moves.push((from_pos, to_pos, None));
+                        }
+                        Ok(MoveOk::NeedsPromotion) => {
+                            for &pp in &PROMOTION_PIECES {
+                                let mut tmp2 = board.clone();
+                                if let Ok(MoveOk::Done) = tmp2.move_piece(from_pos, to_pos, Some(pp)) {
+                                    legal_moves.push((from_pos, to_pos, Some(pp)));
+                                }
+                            }
+                        }
+                        Err(_e) => {
+                        }
                     }
                 }
             }
@@ -34,9 +47,9 @@ pub fn dfs(b: &Board, d: usize, depth_total: usize, totals: &mut [usize]) {
 
     if d == 1 { return; }
 
-    for (from, to) in moves {
+    for (from, to, prom_piece_type) in moves {
         let mut next = b.clone();
-        next.move_piece(from, to).unwrap();
+        next.move_piece(from, to, prom_piece_type).unwrap();
         dfs(&next, d - 1, depth_total, totals);
     }
 }
