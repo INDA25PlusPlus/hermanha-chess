@@ -453,3 +453,187 @@ impl Board {
         };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pieces::{Color, Piece, PieceType};
+
+    fn create_test_board() -> Board {
+        Board::new()
+    }
+
+    fn setup_piece(board: &mut Board, pos: Position, piece_type: PieceType, color: Color) {
+        board.set(pos, Some(Piece::new(piece_type, color)));
+    }
+
+    #[test]
+    fn test_basic_precheck_empty_square() {
+        let board = create_test_board();
+        let from_pos = Position { row: 4, col: 4 };
+        let to_pos = Position { row: 4, col: 5 };
+        
+        let result = board.basic_precheck(from_pos, to_pos);
+        assert_eq!(result, Err(MoveError::EmptyFrom));
+    }
+
+    #[test]
+    fn test_basic_precheck_same_square() {
+        let mut board = create_test_board();
+        let pos = Position { row: 4, col: 4 };
+        setup_piece(&mut board, pos, PieceType::Pawn, Color::White);
+        
+        let result = board.basic_precheck(pos, pos);
+        assert_eq!(result, Err(MoveError::SameSquare));
+    }
+
+    #[test]
+    fn test_basic_precheck_wrong_turn() {
+        let mut board = create_test_board();
+        board.move_turn = Color::White;
+        let from_pos = Position { row: 4, col: 4 };
+        let to_pos = Position { row: 4, col: 5 };
+        setup_piece(&mut board, from_pos, PieceType::Pawn, Color::Black);
+        
+        let result = board.basic_precheck(from_pos, to_pos);
+        assert_eq!(result, Err(MoveError::WrongTurn));
+    }
+
+    #[test]
+    fn test_basic_precheck_out_off_bounds() {
+        let mut board = create_test_board();
+        board.move_turn = Color::White;
+        let from_pos = Position { row: 8, col: 4 };
+        let to_pos = Position { row: 8, col: 3 };
+        setup_piece(&mut board, from_pos, PieceType::Pawn, Color::Black);
+        
+        let result = board.basic_precheck(from_pos, to_pos);
+        assert_eq!(result, Err(MoveError::OutOfBounds));
+    }
+
+    #[test]
+    fn test_basic_precheck_capture_own_piece() {
+        let mut board = create_test_board();
+        board.move_turn = Color::White;
+        let from_pos = Position { row: 4, col: 4 };
+        let to_pos = Position { row: 4, col: 5 };
+        setup_piece(&mut board, from_pos, PieceType::Pawn, Color::White);
+        setup_piece(&mut board, to_pos, PieceType::Rook, Color::White);
+        
+        let result = board.basic_precheck(from_pos, to_pos);
+        assert_eq!(result, Err(MoveError::CaptureOwn));
+    }
+
+    #[test]
+    fn test_basic_precheck_valid_move() {
+        let mut board = create_test_board();
+        board.move_turn = Color::White;
+        let from_pos = Position { row: 4, col: 4 };
+        let to_pos = Position { row: 4, col: 5 };
+        setup_piece(&mut board, from_pos, PieceType::Pawn, Color::White);
+        
+        let result = board.basic_precheck(from_pos, to_pos);
+        assert!(result.is_ok());
+    }
+
+    
+    #[test]
+    fn test_is_illegal_shape() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 4 };
+        let to_pos = Position { row: 0, col: 6 };
+        setup_piece(&mut board, from_pos, PieceType::Bishop, Color::White);
+        
+        let result = board.normal_is_legal(from_pos, to_pos, false);
+        assert_eq!(result, Err(MoveError::IllegalShape));
+    }
+
+    #[test]
+    fn test_is_blocked() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 4 };
+        let to_pos = Position { row: 3, col: 7};
+        let block_pos = Position {row: 2, col: 6};
+        setup_piece(&mut board, from_pos, PieceType::Bishop, Color::White);
+        setup_piece(&mut board, block_pos, PieceType::Bishop, Color::Black);
+        
+        let result = board.normal_is_legal(from_pos, to_pos, false);
+        assert_eq!(result, Err(MoveError::Blocked { at: block_pos}));
+    }
+
+    #[test]
+    fn test_is_self_check() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 3 };
+        let to_pos = Position { row: 0, col: 4};
+        let attacker_pos = Position {row: 2, col: 6};
+        setup_piece(&mut board, from_pos, PieceType::King, Color::White);
+        setup_piece(&mut board, attacker_pos, PieceType::Bishop, Color::Black);
+        
+        let result = board.move_in_check(from_pos, to_pos, MoveType::Normal { is_capture: false });
+        assert_eq!(result, Err(MoveError::SelfCheck));
+    }
+
+    #[test]
+    fn test_castle_king_has_moved() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 4 };
+        let to_pos = Position { row: 0, col: 6};
+        let rook_pos = Position {row: 0, col: 7};
+
+        board.set(from_pos, Some(Piece { piece_type: PieceType::King, color: Color::White, has_moved: true }));
+        setup_piece(&mut board, rook_pos, PieceType::Rook, Color::White);
+        
+        let result = board.castle_is_legal(from_pos, to_pos);
+        assert_eq!(result, Err(MoveError::KingHasMoved));
+    }
+
+    #[test]
+    fn test_castle_rook_has_moved() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 4 };
+        let to_pos = Position { row: 0, col: 6};
+        let rook_pos = Position {row: 0, col: 7};
+
+        setup_piece(&mut board, from_pos, PieceType::King, Color::White);
+        board.set(rook_pos, Some(Piece { piece_type: PieceType::Rook, color: Color::White, has_moved: true }));
+        
+        let result = board.castle_is_legal(from_pos, to_pos);
+        assert_eq!(result, Err(MoveError::RookHasMoved));
+    }
+
+    #[test]
+    fn test_is_castle_true() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 4 };
+        let to_pos = Position { row: 0, col: 6 };
+        let rook_pos = Position {row: 0, col: 7};
+        setup_piece(&mut board, from_pos, PieceType::King, Color::White);
+        setup_piece(&mut board, rook_pos, PieceType::Rook, Color::White);
+        
+        let result = board.is_castle(from_pos, to_pos);
+        assert!(result);
+    }
+
+    #[test]
+    fn test_is_promotion_true_white_pawn() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 6, col: 4 };
+        let to_pos = Position { row: 7, col: 4 };
+        setup_piece(&mut board, from_pos, PieceType::Pawn, Color::White);
+        
+        let result = board.is_promotion(from_pos, to_pos);
+        assert!(result);
+    }
+
+    #[test]
+    fn test_is_promotion_true_black_pawn() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 1, col: 4 };
+        let to_pos = Position { row: 0, col: 4 };
+        setup_piece(&mut board, from_pos, PieceType::Pawn, Color::Black);
+        
+        let result = board.is_promotion(from_pos, to_pos);
+        assert!(result);
+    }
+}
