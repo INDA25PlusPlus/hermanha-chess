@@ -58,10 +58,10 @@ impl Board {
 
         self.move_in_check(from_pos, to_pos, move_type)?;
 
-        if let MoveType::PawnPromotion { .. } = move_type {
-            if prom_piece_type.is_none() {
-                return Ok(MoveOk::NeedsPromotion);
-            }
+        if let MoveType::PawnPromotion { .. } = move_type
+            && prom_piece_type.is_none()
+        {
+            return Ok(MoveOk::NeedsPromotion);
         }
 
         self.set_values(from_pos, to_pos, move_type, prom_piece_type);
@@ -88,10 +88,10 @@ impl Board {
             return Err(MoveError::WrongTurn);
         }
         // check if own piece color is on square
-        if let Some(to_piece) = self.get(to_pos) {
-            if to_piece.color == from_piece.color {
-                return Err(MoveError::CaptureOwn);
-            }
+        if let Some(to_piece) = self.get(to_pos)
+            && to_piece.color == from_piece.color
+        {
+            return Err(MoveError::CaptureOwn);
         };
 
         Ok(())
@@ -120,10 +120,10 @@ impl Board {
 
     pub fn is_capture(&self, from_pos: Position, to_pos: Position) -> bool {
         let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
-        if let Some(to_piece) = self.get(to_pos) {
-            if to_piece.color != from_piece.color {
-                return true;
-            }
+        if let Some(to_piece) = self.get(to_pos)
+            && to_piece.color != from_piece.color
+        {
+            return true;
         }
         false
     }
@@ -154,20 +154,20 @@ impl Board {
             return false;
         }
 
-        if let Some(ep_pos) = self.en_passant {
-            if to_pos == ep_pos {
-                return true;
-            }
+        if let Some(ep_pos) = self.en_passant
+            && to_pos == ep_pos
+        {
+            return true;
         }
         false
     }
 
     pub fn is_promotion(&self, from_pos: Position, to_pos: Position) -> bool {
         let from_piece = self.get(from_pos).expect("validated: piece on from_pos");
-        if from_piece.piece_type == PieceType::Pawn {
-            if to_pos.row == BOARD_ROWS - 1 || to_pos.row == 0 {
-                return true;
-            }
+        if from_piece.piece_type == PieceType::Pawn
+            && (to_pos.row == BOARD_ROWS - 1 || to_pos.row == 0)
+        {
+            return true;
         }
 
         false
@@ -314,10 +314,10 @@ impl Board {
                 break;
             }
 
-            if let Some(target) = to_pos {
-                if pos == target {
-                    return None;
-                }
+            if let Some(target) = to_pos
+                && pos == target
+            {
+                return None;
             }
 
             if self.get(pos).is_some() {
@@ -343,24 +343,24 @@ impl Board {
                     continue;
                 }
 
-                if let Some(hit_pos) = self.check_clear_path(pos, None, row_offset, col_offset) {
-                    if let Some(hit_piece) = self.get(hit_pos) {
-                        let (d_row, d_col) = hit_pos.delta(pos);
+                if let Some(hit_pos) = self.check_clear_path(pos, None, row_offset, col_offset)
+                    && let Some(hit_piece) = self.get(hit_pos)
+                {
+                    let (d_row, d_col) = hit_pos.delta(pos);
 
-                        if hit_piece.color != self.move_turn {
-                            match hit_piece.piece_type {
-                                Bishop | Queen | Rook => {
-                                    if hit_piece.move_shape_ok(d_row, d_col, false, hit_pos.row) {
-                                        return true;
-                                    }
+                    if hit_piece.color != self.move_turn {
+                        match hit_piece.piece_type {
+                            Bishop | Queen | Rook => {
+                                if hit_piece.move_shape_ok(d_row, d_col, false, hit_pos.row) {
+                                    return true;
                                 }
-                                Pawn | King => {
-                                    if hit_piece.move_shape_ok(d_row, d_col, true, hit_pos.row) {
-                                        return true;
-                                    }
-                                }
-                                _ => continue,
                             }
+                            Pawn | King => {
+                                if hit_piece.move_shape_ok(d_row, d_col, true, hit_pos.row) {
+                                    return true;
+                                }
+                            }
+                            _ => continue,
                         }
                     }
                 }
@@ -385,14 +385,12 @@ impl Board {
                 col: pos.col + col_offset,
             };
 
-            if self.pos_on_board(hit_pos) {
-                if let Some(hit_piece) = self.get(hit_pos) {
-                    if hit_piece.color != self.move_turn {
-                        if hit_piece.piece_type == Knight {
-                            return true;
-                        }
-                    }
-                }
+            if self.pos_on_board(hit_pos)
+                && let Some(hit_piece) = self.get(hit_pos)
+                && hit_piece.color != self.move_turn
+                && hit_piece.piece_type == Knight
+            {
+                return true;
             }
         }
 
@@ -519,7 +517,7 @@ impl Board {
             Color::Black => self.black_king.expect("validated: black king position set"),
         };
 
-        self.is_square_attacked(king_pos) && all_legal_moves(&self).is_empty()
+        self.is_square_attacked(king_pos) && all_legal_moves(self).is_empty()
     }
 
     pub fn is_stale_mate(&self) -> bool {
@@ -528,7 +526,7 @@ impl Board {
             Color::Black => self.black_king.expect("validated: black king position set"),
         };
 
-        !self.is_square_attacked(king_pos) && all_legal_moves(&self).is_empty()
+        !self.is_square_attacked(king_pos) && all_legal_moves(self).is_empty()
     }
 }
 

@@ -44,7 +44,6 @@ impl Default for Board {
 }
 
 impl Board {
-
     #[inline]
     pub fn pos_on_board(&self, pos: Position) -> bool {
         pos.row >= 0 && pos.row < BOARD_ROWS && pos.col >= 0 && pos.col < BOARD_COLS
@@ -62,12 +61,12 @@ impl Board {
             return;
         }
 
-        if let Some(p) = piece {
-            if p.piece_type == PieceType::King {
-                match p.color {
-                    Color::Black => self.black_king = Some(position),
-                    Color::White => self.white_king = Some(position),
-                }
+        if let Some(p) = piece
+            && p.piece_type == PieceType::King
+        {
+            match p.color {
+                Color::Black => self.black_king = Some(position),
+                Color::White => self.white_king = Some(position),
             }
         }
 

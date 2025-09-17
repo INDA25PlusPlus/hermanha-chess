@@ -13,29 +13,29 @@ pub fn all_legal_moves(board: &Board) -> Vec<(Position, Position, Option<PieceTy
         for from_col in 0..BOARD_COLS {
             let from_pos = pos(from_row, from_col);
 
-            if let Some(piece) = board.get(from_pos) {
-                if piece.color == board.move_turn {
-                    for to_row in 0..BOARD_ROWS {
-                        for to_col in 0..BOARD_COLS {
-                            let to_pos = pos(to_row, to_col);
-                            let mut tmp = board.clone();
+            if let Some(piece) = board.get(from_pos)
+                && piece.color == board.move_turn
+            {
+                for to_row in 0..BOARD_ROWS {
+                    for to_col in 0..BOARD_COLS {
+                        let to_pos = pos(to_row, to_col);
+                        let mut tmp = board.clone();
 
-                            match tmp.move_piece(from_pos, to_pos, None) {
-                                Ok(MoveOk::Done) => {
-                                    legal_moves.push((from_pos, to_pos, None));
-                                }
-                                Ok(MoveOk::NeedsPromotion) => {
-                                    for &pp in &PROMOTION_PIECES {
-                                        let mut tmp2 = board.clone();
-                                        if let Ok(MoveOk::Done) =
-                                            tmp2.move_piece(from_pos, to_pos, Some(pp))
-                                        {
-                                            legal_moves.push((from_pos, to_pos, Some(pp)));
-                                        }
+                        match tmp.move_piece(from_pos, to_pos, None) {
+                            Ok(MoveOk::Done) => {
+                                legal_moves.push((from_pos, to_pos, None));
+                            }
+                            Ok(MoveOk::NeedsPromotion) => {
+                                for &pp in &PROMOTION_PIECES {
+                                    let mut tmp2 = board.clone();
+                                    if let Ok(MoveOk::Done) =
+                                        tmp2.move_piece(from_pos, to_pos, Some(pp))
+                                    {
+                                        legal_moves.push((from_pos, to_pos, Some(pp)));
                                     }
                                 }
-                                Err(_e) => {}
                             }
+                            Err(_e) => {}
                         }
                     }
                 }
