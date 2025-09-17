@@ -738,7 +738,7 @@ mod tests {
         setup_piece(&mut board, queen_pos, PieceType::Queen, Color::Black);
 
         let result = board.is_check_mate();
-        assert_eq!(result, true);
+        assert!(result);
     }
 
     #[test]
@@ -751,7 +751,7 @@ mod tests {
         setup_piece(&mut board, queen_pos, PieceType::Queen, Color::Black);
 
         let result = board.is_stale_mate();
-        assert_eq!(result, true);
+        assert!(result);
     }
 
     #[test]
