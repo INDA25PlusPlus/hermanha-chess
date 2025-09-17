@@ -500,6 +500,18 @@ mod tests {
     }
 
     #[test]
+    fn test_basic_precheck_out_off_bounds() {
+        let mut board = create_test_board();
+        board.move_turn = Color::White;
+        let from_pos = Position { row: 8, col: 4 };
+        let to_pos = Position { row: 8, col: 3 };
+        setup_piece(&mut board, from_pos, PieceType::Pawn, Color::Black);
+        
+        let result = board.basic_precheck(from_pos, to_pos);
+        assert_eq!(result, Err(MoveError::OutOfBounds));
+    }
+
+    #[test]
     fn test_basic_precheck_capture_own_piece() {
         let mut board = create_test_board();
         board.move_turn = Color::White;
@@ -522,6 +534,72 @@ mod tests {
         
         let result = board.basic_precheck(from_pos, to_pos);
         assert!(result.is_ok());
+    }
+
+    
+    #[test]
+    fn test_is_illegal_shape() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 4 };
+        let to_pos = Position { row: 0, col: 6 };
+        setup_piece(&mut board, from_pos, PieceType::Bishop, Color::White);
+        
+        let result = board.normal_is_legal(from_pos, to_pos, false);
+        assert_eq!(result, Err(MoveError::IllegalShape));
+    }
+
+    #[test]
+    fn test_is_blocked() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 4 };
+        let to_pos = Position { row: 3, col: 7};
+        let block_pos = Position {row: 2, col: 6};
+        setup_piece(&mut board, from_pos, PieceType::Bishop, Color::White);
+        setup_piece(&mut board, block_pos, PieceType::Bishop, Color::Black);
+        
+        let result = board.normal_is_legal(from_pos, to_pos, false);
+        assert_eq!(result, Err(MoveError::Blocked { at: block_pos}));
+    }
+
+    #[test]
+    fn test_is_self_check() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 3 };
+        let to_pos = Position { row: 0, col: 4};
+        let attacker_pos = Position {row: 2, col: 6};
+        setup_piece(&mut board, from_pos, PieceType::King, Color::White);
+        setup_piece(&mut board, attacker_pos, PieceType::Bishop, Color::Black);
+        
+        let result = board.move_in_check(from_pos, to_pos, MoveType::Normal { is_capture: false });
+        assert_eq!(result, Err(MoveError::SelfCheck));
+    }
+
+    #[test]
+    fn test_castle_king_has_moved() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 4 };
+        let to_pos = Position { row: 0, col: 6};
+        let rook_pos = Position {row: 0, col: 7};
+
+        board.set(from_pos, Some(Piece { piece_type: PieceType::King, color: Color::White, has_moved: true }));
+        setup_piece(&mut board, rook_pos, PieceType::Rook, Color::White);
+        
+        let result = board.castle_is_legal(from_pos, to_pos);
+        assert_eq!(result, Err(MoveError::KingHasMoved));
+    }
+
+    #[test]
+    fn test_castle_rook_has_moved() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 4 };
+        let to_pos = Position { row: 0, col: 6};
+        let rook_pos = Position {row: 0, col: 7};
+
+        setup_piece(&mut board, from_pos, PieceType::King, Color::White);
+        board.set(rook_pos, Some(Piece { piece_type: PieceType::Rook, color: Color::White, has_moved: true }));
+        
+        let result = board.castle_is_legal(from_pos, to_pos);
+        assert_eq!(result, Err(MoveError::RookHasMoved));
     }
 
     #[test]
