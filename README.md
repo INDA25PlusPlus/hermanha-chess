@@ -3,7 +3,7 @@ Chess API built in rust
 
 # How it Works!
 
-**Board**: Board does it all basically. it keeps track of the game_state and has the logic for move legality. in board.rs you will find the base responsibilities, setting, getting, etc. in rules.rs you will find the logic for moving a piece. It might not be optional, but it works and its kind of easy to understand, for me at least.
+**Board**: Board does it all basically. it keeps track of the game_state and has the logic for move legality. in board.rs you will find the base responsibilities, setting, getting, FEN parsing, etc. in rules.rs you will find the logic for moving a piece. It might not be optimal, but it works and its kind of easy to understand, for me at least.
 
 **Rules**: 
 1. check basic things, like positions on board, not same pos, etc. basic legality i guess without checking movement at all.
@@ -29,12 +29,12 @@ If the move is legal, it will return MoveOk (type alias for ()), if not it will 
 
 **lib** I believe the lib kind of gives you access to everything. you can do whatever you want. but i believe the basic methods are supposed to be the ones in lib.rs. **start_pos** for generating a board with pieces in starting postions, **play** a method to take a from pos and to pos to make a move, **legal_moves** to generate all legal moves, maybe for debugging or something idk. **perft_layers** to easily compare the chess api to other confirmed working apis, and see if a certain position generates the right amount of moves to a certain depth.
 
-**Whats left** Oooof, probably a lot. but if we are just looking at functionality i believe its only pawn promotions left. If my tests work correctly and the api is actually doing what it is supposed to be doing, that said. Then write more tests, testing units and other stuff that might go wrong is always a good thing. ive been lazy so havn't done that but i think it should be fine for now, just dont do anything stupid:D
+**Whats left** Oooof, probably a lot. but if we are just looking at functionality, pawn promotions are done now! Added checkmate and stalemate detection too. Still missing some advanced rules like 50-move rule, threefold repetition, insufficient material draws. But the core chess engine works pretty well now. Still need more tests probably, ive been lazy so haven't done that but i think it should be fine for now, just dont do anything stupid:D
 
 # How to use it??
 
 ## Make a board in start position and play a move
-```
+```rust
 use hermanha_chess::{Board, MoveOk, MoveError};
 
 fn main() -> Result<MoveOk, MoveError>{
@@ -42,17 +42,17 @@ fn main() -> Result<MoveOk, MoveError>{
     let from = (1,1);
     let to = (2,1);
 
-    board.play(from, to)
+    board.play(from, to, None)  // None for no pawn promotion
 }   
 ```
 
 ## get all legal moves in specific position
-```
+```rust
 use hermanha_chess::{Board};
 
 fn main() {
     let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
-    let mut board = Board::new();
+    let mut board = Board::default();  // use default() now
     board.setup_fen(fen); 
 
     println!("{:?}", board.legal_moves())
@@ -60,17 +60,54 @@ fn main() {
 ```
 
 ## Perft analysis for certain position and move depth
-```
+```rust
 use hermanha_chess::{Board};
 
 fn main() {
     let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
-    let mut board = Board::new();
+    let mut board = Board::default();  // use default() now
     board.setup_fen(fen);
 
     let depth= 3;
 
     println!("{:?}", board.perft_layers(depth))
+}
+```
+
+## Check for checkmate/stalemate
+```rust
+use hermanha_chess::{Board, GameResult};
+
+fn main() {
+    let mut board = Board::start_pos();
+    
+    match board.game_over() {
+        Some(GameResult::Checkmate(winner)) => println!("{:?} wins!", winner),
+        Some(GameResult::Stalemate) => println!("Draw by stalemate!"),
+        None => println!("Game continues..."),
+    }
+}
+```
+
+## Pawn promotion example (important for frontend!)
+```rust
+use hermanha_chess::{Board, PieceType, MoveOk};
+
+fn main() {
+    let mut board = Board::default();
+    board.setup_fen("8/P7/8/8/8/8/8/8");  // White pawn is trying to promoteee:O
+    
+    // First try the move without specifying promotion piece
+    match board.play((6, 0), (7, 0), None) {
+        Ok(MoveOk::NeedsPromotion) => {
+            // Now frontend should ask user what piece they want
+            // Then make the move again with the promotion piece,
+            // lets say they choose queen:
+            board.play((6, 0), (7, 0), Some(PieceType::Queen)).unwrap();
+        },
+        Ok(MoveOk::Done) => println!("Move completed"),
+        Err(e) => println!("Move failed: {:?}", e),
+    }
 }
 ```
 
