@@ -18,12 +18,16 @@ pub enum Color {
 pub struct Piece {
     pub piece_type: PieceType,
     pub color: Color,
-    pub has_moved: bool
+    pub has_moved: bool,
 }
 
 impl Piece {
     pub fn new(piece_type: PieceType, color: Color) -> Self {
-        Self { piece_type, color, has_moved: false }
+        Self {
+            piece_type,
+            color,
+            has_moved: false,
+        }
     }
 
     pub fn move_shape_ok(self, d_row: i8, d_col: i8, capture: bool, from_row: i8) -> bool {
@@ -40,11 +44,13 @@ impl Piece {
                 if capture {
                     abs_dc == 1 && (d_row == fwd)
                 } else {
-                    if d_col != 0 {return false;}
+                    if d_col != 0 {
+                        return false;
+                    }
 
                     let start_row: i8 = match self.color {
                         Color::White => 1,
-                        Color::Black => 6
+                        Color::Black => 6,
                     };
 
                     d_row == fwd || (from_row == start_row && d_row == 2 * fwd)

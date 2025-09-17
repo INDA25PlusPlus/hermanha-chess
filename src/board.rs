@@ -13,8 +13,8 @@ pub struct Position {
 }
 
 impl Position {
-    pub fn new(row: i8, col:i8) -> Self{
-        Self {row, col}
+    pub fn new(row: i8, col: i8) -> Self {
+        Self { row, col }
     }
 
     pub fn delta(&self, other: Position) -> (i8, i8) {
@@ -28,7 +28,7 @@ pub struct Board {
     pub move_turn: Color,
     pub white_king: Option<Position>,
     pub black_king: Option<Position>, //cache the kings insted of looping through board looking for it??? good??
-    pub en_passant: Option<Position>
+    pub en_passant: Option<Position>,
 }
 
 impl Board {
@@ -38,7 +38,7 @@ impl Board {
             move_turn: Color::White,
             white_king: None,
             black_king: None,
-            en_passant: None
+            en_passant: None,
         }
     }
 
@@ -125,6 +125,9 @@ mod tests {
     fn test_generate_starting_board() {
         let mut board = Board::new();
         board.setup_fen(FEN);
-        assert_eq!(board.get(Position{row:0,col:0}).unwrap().piece_type, PieceType::Rook)
+        assert_eq!(
+            board.get(Position { row: 0, col: 0 }).unwrap().piece_type,
+            PieceType::Rook
+        )
     }
 }

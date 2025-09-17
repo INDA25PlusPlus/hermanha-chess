@@ -1,11 +1,11 @@
-pub mod pieces;
 pub mod board;
-pub mod rules;
 pub mod movegen;
+pub mod pieces;
+pub mod rules;
 
-pub use board::{Board, Position, BOARD_COLS, BOARD_ROWS};
+pub use board::{BOARD_COLS, BOARD_ROWS, Board, Position};
 pub use pieces::{Color, Piece, PieceType};
-pub use rules::{MoveError, MoveOk, GameResult};
+pub use rules::{GameResult, MoveError, MoveOk};
 
 pub const STARTING_BOARD: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
 
@@ -16,9 +16,20 @@ impl Board {
         board
     }
 
-    pub fn play(&mut self, from: (i8,i8), to: (i8, i8), prom_piece_type: Option<PieceType>) -> Result<MoveOk, MoveError> {
-        let from_pos = Position{row: from.0, col: from.1};
-        let to_pos = Position{row: to.0, col: to.1};
+    pub fn play(
+        &mut self,
+        from: (i8, i8),
+        to: (i8, i8),
+        prom_piece_type: Option<PieceType>,
+    ) -> Result<MoveOk, MoveError> {
+        let from_pos = Position {
+            row: from.0,
+            col: from.1,
+        };
+        let to_pos = Position {
+            row: to.0,
+            col: to.1,
+        };
         self.move_piece(from_pos, to_pos, prom_piece_type)
     }
 
@@ -34,7 +45,7 @@ impl Board {
         if self.is_check_mate() {
             Some(GameResult::Checkmate(match self.move_turn {
                 Color::White => Color::Black,
-                Color::Black => Color::White
+                Color::Black => Color::White,
             }))
         } else if self.is_stale_mate() {
             Some(GameResult::Stalemate)
