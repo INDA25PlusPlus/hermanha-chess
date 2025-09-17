@@ -538,7 +538,7 @@ mod tests {
     use crate::pieces::{Color, Piece, PieceType};
 
     fn create_test_board() -> Board {
-        Board::new()
+        Board::default()
     }
 
     fn setup_piece(board: &mut Board, pos: Position, piece_type: PieceType, color: Color) {

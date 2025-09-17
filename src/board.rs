@@ -31,8 +31,8 @@ pub struct Board {
     pub en_passant: Option<Position>,
 }
 
-impl Board {
-    pub fn new() -> Self {
+impl Default for Board {
+    fn default() -> Self {
         Board {
             squares: [[None; BOARD_COLS as usize]; BOARD_ROWS as usize],
             move_turn: Color::White,
@@ -41,6 +41,9 @@ impl Board {
             en_passant: None,
         }
     }
+}
+
+impl Board {
 
     #[inline]
     pub fn pos_on_board(&self, pos: Position) -> bool {
@@ -123,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_generate_starting_board() {
-        let mut board = Board::new();
+        let mut board = Board::default();
         board.setup_fen(FEN);
         assert_eq!(
             board.get(Position { row: 0, col: 0 }).unwrap().piece_type,
