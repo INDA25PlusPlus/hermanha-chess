@@ -5,7 +5,7 @@ pub mod movegen;
 
 pub use board::{Board, Position, BOARD_COLS, BOARD_ROWS};
 pub use pieces::{Color, Piece, PieceType};
-pub use rules::{MoveError, MoveOk};
+pub use rules::{MoveError, MoveOk, GameResult};
 
 pub const STARTING_BOARD: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
 
@@ -16,10 +16,10 @@ impl Board {
         board
     }
 
-    pub fn play(&mut self, from: (i8,i8), to: (i8, i8)) -> Result<MoveOk, MoveError> {
+    pub fn play(&mut self, from: (i8,i8), to: (i8, i8), prom_piece_type: Option<PieceType>) -> Result<MoveOk, MoveError> {
         let from_pos = Position{row: from.0, col: from.1};
         let to_pos = Position{row: to.0, col: to.1};
-        self.move_piece(from_pos, to_pos, None)
+        self.move_piece(from_pos, to_pos, prom_piece_type)
     }
 
     pub fn legal_moves(&self) -> Vec<(Position, Position, Option<PieceType>)> {
@@ -28,5 +28,18 @@ impl Board {
 
     pub fn perft_layers(&mut self, depth: usize) -> Vec<usize> {
         movegen::perft_layers(self, depth)
+    }
+
+    pub fn game_over(&self) -> Option<GameResult> {
+        if self.is_check_mate() {
+            Some(GameResult::Checkmate(match self.move_turn {
+                Color::White => Color::Black,
+                Color::Black => Color::White
+            }))
+        } else if self.is_stale_mate() {
+            Some(GameResult::Stalemate)
+        } else {
+            None
+        }
     }
 }

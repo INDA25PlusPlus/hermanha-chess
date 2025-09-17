@@ -1,5 +1,6 @@
 use crate::board::{Board, Position, BOARD_COLS, BOARD_ROWS};
 use crate::pieces::{Color, PieceType};
+use crate::movegen::all_legal_moves;
 
 // ASCII board
 
@@ -28,6 +29,12 @@ pub enum MoveType {
 pub enum MoveOk{
     Done,
     NeedsPromotion
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GameResult {
+    Checkmate(Color),
+    Stalemate
 }
 
 impl Board {
@@ -452,6 +459,24 @@ impl Board {
             Color::Black => Color::White,
         };
     }
+
+    pub fn is_check_mate(&self) -> bool {
+        let king_pos = match self.move_turn {
+            Color::White => self.white_king.expect("validated: white king position set"),
+            Color::Black => self.black_king.expect("validated: black king position set"),
+        };
+        
+        self.is_square_attacked(king_pos) && all_legal_moves(&self).is_empty()
+    }
+
+    pub fn is_stale_mate(&self) -> bool {
+        let king_pos = match self.move_turn {
+            Color::White => self.white_king.expect("validated: white king position set"),
+            Color::Black => self.black_king.expect("validated: black king position set"),
+        };
+        
+        !self.is_square_attacked(king_pos) && all_legal_moves(&self).is_empty()
+    }
 }
 
 #[cfg(test)]
@@ -635,5 +660,61 @@ mod tests {
         
         let result = board.is_promotion(from_pos, to_pos);
         assert!(result);
+    }
+
+    #[test]
+    fn test_is_check_mate() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 0 };
+        let queen_pos = Position {row: 1, col: 2};
+        let rook_pos = Position {row: 0, col: 2};
+
+        setup_piece(&mut board, from_pos, PieceType::King, Color::White);
+        setup_piece(&mut board, rook_pos, PieceType::Rook, Color::Black);
+        setup_piece(&mut board, queen_pos, PieceType::Queen, Color::Black);
+        
+        let result = board.is_check_mate();
+        assert_eq!(result, true);
+    }
+
+    #[test]
+    fn test_is_stale_mate() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 0 };
+        let queen_pos = Position {row: 1, col: 2};
+
+        setup_piece(&mut board, from_pos, PieceType::King, Color::White);
+        setup_piece(&mut board, queen_pos, PieceType::Queen, Color::Black);
+        
+        let result = board.is_stale_mate();
+        assert_eq!(result, true);
+    }
+
+    #[test]
+    fn test_game_over_stale_mate() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 0 };
+        let queen_pos = Position {row: 1, col: 2};
+
+        setup_piece(&mut board, from_pos, PieceType::King, Color::White);
+        setup_piece(&mut board, queen_pos, PieceType::Queen, Color::Black);
+        
+        let result = board.game_over();
+        assert_eq!(result, Some(GameResult::Stalemate));
+    }
+
+    #[test]
+    fn test_game_over_check_mate() {
+        let mut board = create_test_board();
+        let from_pos = Position { row: 0, col: 0 };
+        let queen_pos = Position {row: 1, col: 2};
+        let rook_pos = Position {row: 0, col: 2};
+
+        setup_piece(&mut board, from_pos, PieceType::King, Color::White);
+        setup_piece(&mut board, rook_pos, PieceType::Rook, Color::Black);
+        setup_piece(&mut board, queen_pos, PieceType::Queen, Color::Black);
+        
+        let result = board.game_over();
+        assert_eq!(result, Some(GameResult::Checkmate(Color::Black)));
     }
 }
