@@ -23,6 +23,8 @@ If the move is legal, it will return MoveOk (type alias for ()), if not it will 
 * KingHasMoved,
 * RookHasMoved
 
+Hej
+
 **NOTE:** old note:)) (ill keep it for now) With that said. for now it works like this: You have to input both from move and to move. We then check a lot of things (whos turn, what piece, path between the positions etc) and moves the piece if legal. This might be dumb in the future as you have to insert both from and to position right away, although some rules just require from pos to tell illegality (for example trying to move a black piece on whites turn, it could tell you its illegal before you specify its destination)
 
 **NOTE:** I dont know if i like board owning all of the moves and legality stuff. i think im gonna change that yes veri good
