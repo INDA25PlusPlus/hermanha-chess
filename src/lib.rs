@@ -11,7 +11,7 @@ pub const STARTING_BOARD: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
 
 impl Board {
     pub fn start_pos() -> Self {
-        let mut board = Board::new();
+        let mut board = Board::default();
         board.setup_fen(STARTING_BOARD);
         board
     }
