@@ -477,19 +477,6 @@ impl Board {
         
         !self.is_square_attacked(king_pos) && all_legal_moves(&self).is_empty()
     }
-
-    pub fn game_over(&self) -> Option<GameResult> {
-        if self.is_check_mate() {
-            Some(GameResult::Checkmate(match self.move_turn {
-                Color::White => Color::Black,
-                Color::Black => Color::White
-            }))
-        } else if self.is_stale_mate() {
-            Some(GameResult::Stalemate)
-        } else {
-            None
-        }
-    }
 }
 
 #[cfg(test)]
