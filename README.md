@@ -2,6 +2,7 @@
 Chess API built in rust
 
 # How it Works!
+**NOTE** I forgot to tell you how the board structure is working. but white pieces will be on row 0 and 1 and black pieces will be on row 6 and 7 on the starting position.
 
 **Board**: Board does it all basically. it keeps track of the game_state and has the logic for move legality. in board.rs you will find the base responsibilities, setting, getting, FEN parsing, etc. in rules.rs you will find the logic for moving a piece. It might not be optimal, but it works and its kind of easy to understand, for me at least.
 
